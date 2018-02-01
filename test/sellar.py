@@ -92,6 +92,9 @@ class GaussSiedel(Group):
         self.add_subsystem('d1', Disc1())
         self.add_subsystem('d2', Disc2())
         
+        #self.add_subsystem('d1', Disc1(), promotes_inputs=['x', 'z'], promotes_outputs=['y1'])
+        #self.add_subsystem('d2', Disc2(), promotes_inputs=['x', 'z'], promotes_outputs=['y2'])
+        
         self.connect('d1.y1', 'd2.y1')
         self.connect('d2.y2', 'd1.y2')
         
@@ -100,8 +103,8 @@ class GaussSiedel(Group):
         
 class dof(IndepVarComp):    
     def setup(self):
-        self.add_output('x')
-        self.add_output('z', shape=2)
+        self.add_output('x', val=2.0)
+        self.add_output('z', val=[-1., -1.])
         
     def compute(self, inputs, outputs):
         pass    
@@ -120,11 +123,16 @@ class Sellar(Group):
         self.add_subsystem('c1', Constraint1())
         self.add_subsystem('c2', Constraint2())
         
+#         self.add_subsystem('dof', i, promotes=['*'])
+#         self.add_subsystem('cycle', GaussSiedel(), promotes=['*'])
+#         self.add_subsystem('obj', Objective(), promotes=['*'])
+#         self.add_subsystem('c1', Constraint1())
+#         self.add_subsystem('c2', Constraint2())
+        
         self.connect('dof.x', ['cycle.d1.x', 'obj.x'])
         self.connect('dof.z', ['obj.z', 'cycle.d1.z', 'cycle.d2.z'])        
         self.connect('cycle.d1.y1', ['obj.y1', 'c1.y1']) 
         self.connect('cycle.d2.y2', ['obj.y2', 'c2.y2']) 
-    
           
       
 if __name__ == "__main__":

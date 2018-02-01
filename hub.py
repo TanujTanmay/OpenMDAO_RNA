@@ -1,5 +1,5 @@
 from openmdao.api import ExplicitComponent, Group, IndepVarComp
-from drivese_utils import get_L_rb
+#from drivese_utils import get_L_rb
 
 import numpy as np
 from math import pi, cos, sqrt, radians, sin, exp, log10, log, floor, ceil

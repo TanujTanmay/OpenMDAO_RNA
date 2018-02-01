@@ -68,20 +68,20 @@ if __name__ == "__main__":
     print(prob['paraboloid.f_xy'])
     
     # optimization problem
-    opt = Problem(model)
-    opt.driver = ScipyOptimizer()
-    opt.driver.options['optimizer'] = 'COBYLA'
-     
-    opt.model.add_design_var('dof.x', lower=-50, upper=50)
-    opt.model.add_design_var('dof.y', lower=-50, upper=50)
-    opt.model.add_objective('paraboloid.f_xy')
-    opt.model.add_constraint('constraint.g', lower=0., upper=10.)   # inequality
-    #opt.model.add_constraint('constraint.g', equals=0.)             # equality
-     
-    opt.setup()
-    opt.run_driver()
-    print(opt['paraboloid.f_xy'], opt['dof.x'], opt['dof.y'])
-    
+#     opt = Problem(model)
+#     opt.driver = ScipyOptimizer()
+#     opt.driver.options['optimizer'] = 'COBYLA'
+#      
+#     opt.model.add_design_var('dof.x', lower=-50, upper=50)
+#     opt.model.add_design_var('dof.y', lower=-50, upper=50)
+#     opt.model.add_objective('paraboloid.f_xy')
+#     opt.model.add_constraint('constraint.g', lower=0., upper=10.)   # inequality
+#     #opt.model.add_constraint('constraint.g', equals=0.)             # equality
+#      
+#     opt.setup()
+#     opt.run_driver()
+#     print(opt['paraboloid.f_xy'], opt['dof.x'], opt['dof.y'])
+#     
     
     
     
