@@ -815,10 +815,10 @@ def setup_Bedplate(L_rb, rotor_diameter, \
     
     
     result = [tf, tw, h0, b0, density, g, E, \
-           rearTotalLength, frontTotalLength, convLoc, transLoc, convMass, \
-           rootStress, totalTipDefl, stressTol, deflTol, \
-           rotorLoc, rotorFz, rotorMy, \
-           defl_denom, stress_mult, stressMax, deflMax]
+     gbx_location, gbx_mass, rotorLoc, rotorFz, rotorMy, \
+     rearTotalLength, frontTotalLength, convLoc, transLoc, convMass, \
+     rootStress, totalTipDefl, stressTol, deflTol, \
+     defl_denom, stress_mult, stressMax, deflMax]
     
     return result
   
@@ -860,7 +860,8 @@ def characterize_Bedplate_Rear(tf, tw, h0, b0, density, g, E, rearTotalLength, \
     rearTotalTipDefl=totalTipDefl
     rearBendingStress=rootStress
     
-    return totalSteelMass
+    result = [totalTipDefl, rootStress, totalSteelMass]
+    return result
   
   
   
@@ -886,9 +887,9 @@ def setup_Bedplate_Front(gbx_location, gbx_mass, frontTotalLength, defl_denom):
     deflMax = frontTotalLength/defl_denom
     stressMax = 200e6
     
-    result = [rootStress, stress_mult, stressMax, stressTol, \
-         totalTipDefl, deflMax, deflTol, \
-         tf, tw, h0, b0, castDensity, g, E]
+    result = [rootStress, totalTipDefl, deflMax, stressMax, \
+     gbx_location, gbx_mass, \
+     tf, tw, h0, b0, castDensity, E]
     
     return result
   
@@ -898,7 +899,7 @@ def setup_Bedplate_Front(gbx_location, gbx_mass, frontTotalLength, defl_denom):
 def characterize_Bedplate_Front(tf, tw, h0, b0, castDensity, g, E, frontTotalLength, \
                                   gbx_location, gbx_mass, mb1_location, mb1_mass, \
                                   mb2_location, mb2_mass, lss_location, lss_mass, \
-                                  rotorLoc, rotor_mass, rotorFz):
+                                  rotorLoc, rotor_mass, rotorFz, rotorMy):
     bi = (b0-tw)/2.0
     hi = h0-2.0*tf
     I_b = b0*h0**3/12.0 - 2*bi*hi**3/12.0
@@ -933,7 +934,8 @@ def characterize_Bedplate_Front(tf, tw, h0, b0, castDensity, g, E, frontTotalLen
     frontTotalTipDefl=totalTipDefl
     frontBendingStress=rootStress
     
-    return totalCastMass
+    result = [totalTipDefl, rootStress, totalCastMass]
+    return result
     
 
 
@@ -969,7 +971,7 @@ def size_Bedplate(b0, rotor_diameter, tower_top_diameter, frontHeight, rearHeigh
     I[2]  = I[1]
     I = I
     
-    result = [mass, cm, I, length, width, depth]
+    result = [mass, cm, I, length, width, height]
     return result
 
 

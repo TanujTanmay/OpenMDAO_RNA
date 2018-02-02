@@ -3,6 +3,7 @@ from openmdao.solvers.nonlinear.nonlinear_block_gs import NonlinearBlockGS
 # from drivese_utils import get_L_rb, fx, gx,  setup_Bedplate_Front, setup_Bedplate, size_Bedplate,\
 #     characterize_Bedplate_Front, characterize_Bedplate_Rear
 from drivese_utils import *
+from time import time, clock
 #     fatigue_for_bearings, resize_for_bearings, get_rotor_mass, get_L_rb, get_My, get_Mz, fx, gx, \
 #     stageTypeCalc, stageRatioCalc, gbxWeightEst, \
 #     size_Generator, size_HighSpeedSide, size_YawSystem, size_LowSpeedShaft, setup_Bedplate_Front, setup_Bedplate, size_Bedplate,\
@@ -144,7 +145,7 @@ class NacelleSystemAdder_drive(ExplicitComponent): #added to drive to include tr
         # returns
         self.add_output('nacelle_mass', units='kg', desc='overall component mass')
         self.add_output('nacelle_cm', units='m', desc='center of mass of the component in [x,y,z] for an arbitrary coordinate system', shape=3)
-        self.add_output('nacelle_I', units='kg*m**2', desc=' moments of Inertia for the component [Ixx, Iyy, Izz] around its center of mass', shape=3)
+        self.add_output('nacelle_I', units='kg*m**2', desc=' moments of Inertia for the component [Ixx, Iyy, Izz] around its center of mass', shape=6)
 
     
     
@@ -527,13 +528,12 @@ class LowSpeedShaft_drive3pt(ExplicitComponent):
 
 
 
-class Bearing_drive(ExplicitComponent): 
+class MainBearing_drive(ExplicitComponent): 
     ''' MainBearings class          
           The MainBearings class is used to represent the main bearing components of a wind turbine drivetrain. It contains two subcomponents (main bearing and second bearing) which also inherit from the SubComponent class.
           It contains the general properties for a wind turbine component as well as additional design load and dimentional attributes as listed below.
           It contains an update method to determine the mass, mass properties, and dimensions of the component.           
     '''
-    
     def setup(self):
         # variables
         #self.add_input('bearing_type', desc='Main bearing type: CARB, TRB1 or SRB')
@@ -546,22 +546,8 @@ class Bearing_drive(ExplicitComponent):
         # returns
         self.add_output('mass', units='kg', desc='overall component mass')
         self.add_output('cm', units='m', desc='center of mass of the component in [x,y,z] for an arbitrary coordinate system', shape=3)
-        self.add_output('I', units='kg*m**2', desc=' moments of Inertia for the component [Ixx, Iyy, Izz] around its center of mass', shape=3)
-        
-    def compute(self, inputs, outputs):
-        bearing_mass = inputs['bearing_mass']
-        mass = bearing_mass
-        mass += mass*(8000.0/2700.0) #add housing weight
-        outputs['mass'] = mass
-
-
-class MainBearing_drive(Bearing_drive): 
-    ''' MainBearings class          
-          The MainBearings class is used to represent the main bearing components of a wind turbine drivetrain. It contains two subcomponents (main bearing and second bearing) which also inherit from the SubComponent class.
-          It contains the general properties for a wind turbine component as well as additional design load and dimentional attributes as listed below.
-          It contains an update method to determine the mass, mass properties, and dimensions of the component.           
-    '''
-    
+        self.add_output('I', units='kg*m**2', desc=' moments of Inertia for the component [Ixx, Iyy, Izz] around its center of mass', shape=(3,1))
+ 
     def compute(self, inputs, outputs):
         
         bearing_type = 'SRB' #inputs['bearing_type']
@@ -571,7 +557,9 @@ class MainBearing_drive(Bearing_drive):
         rotor_diameter = inputs['rotor_diameter']
         location = inputs['location']
 
-        super(MainBearing_drive, self).compute()
+        #super(MainBearing_drive, self).compute(inputs, outputs)
+        mass = bearing_mass
+        mass += mass*(8000.0/2700.0) #add housing weight
         
         # calculate mass properties
         depth = (lss_diameter * 1.5)
@@ -585,18 +573,32 @@ class MainBearing_drive(Bearing_drive):
             cm = cmMB
             
         outputs['cm'] = cm    
-       
+        outputs['mass'] = mass
         b1I0 = (mass * lss_diameter ** 2 ) / 4.0 
-        outputs['I'] = ([b1I0, b1I0 / 2.0, b1I0 / 2.0])
+        outputs['I'] = np.array([b1I0, b1I0 / 2.0, b1I0 / 2.0])
         
         
         
-class SecondBearing_drive(Bearing_drive): 
+class SecondBearing_drive(ExplicitComponent): 
     ''' MainBearings class          
           The MainBearings class is used to represent the main bearing components of a wind turbine drivetrain. It contains two subcomponents (main bearing and second bearing) which also inherit from the SubComponent class.
           It contains the general properties for a wind turbine component as well as additional design load and dimentional attributes as listed below.
           It contains an update method to determine the mass, mass properties, and dimensions of the component.           
     '''
+    def setup(self):
+        # variables
+        #self.add_input('bearing_type', desc='Main bearing type: CARB, TRB1 or SRB')
+        self.add_input('bearing_mass', units = 'kg', desc = 'bearing mass from LSS model')
+        self.add_input('lss_diameter', units='m', desc='lss outer diameter at main bearing')
+        self.add_input('lss_design_torque', units='N*m', desc='lss design torque')
+        self.add_input('rotor_diameter', units='m', desc='rotor diameter')
+        self.add_input('location', units = 'm', desc = 'x,y,z location from shaft model', shape=3)
+    
+        # returns
+        self.add_output('mass', units='kg', desc='overall component mass')
+        self.add_output('cm', units='m', desc='center of mass of the component in [x,y,z] for an arbitrary coordinate system', shape=3)
+        self.add_output('I', units='kg*m**2', desc=' moments of Inertia for the component [Ixx, Iyy, Izz] around its center of mass', shape=(3,1))
+ 
     
     def compute(self, inputs, outputs):
 
@@ -607,8 +609,8 @@ class SecondBearing_drive(Bearing_drive):
         rotor_diameter = inputs['rotor_diameter']
         location = inputs['location']
         
-        super(SecondBearing_drive, self).compute()
-        mass = outputs['mass']
+        mass = bearing_mass
+        mass += mass*(8000.0/2700.0) #add housing weight
 
         # calculate mass properties
         depth = (lss_diameter * 1.5)
@@ -643,7 +645,7 @@ class Gearbox_drive(ExplicitComponent):
         self.add_input('rotor_speed', units='rpm', desc='rotor rpm at rated power')
         self.add_input('rotor_diameter', units='m', desc='rotor diameter')
         self.add_input('rotor_torque', units='N*m', desc='rotor torque at rated power')
-        self.add_input('gearbox_cm', units='m', desc ='gearbox position along x-axis', shape=3)
+        self.add_input('gearbox_cm_x', units='m', desc ='gearbox position along x-axis')
     
         #parameters
         #self.add_input('gear_configuration', desc='string that represents the configuration of the gearbox (stage number and types)')
@@ -653,8 +655,8 @@ class Gearbox_drive(ExplicitComponent):
         # outputs
         self.add_output('stage_masses', units='kg', desc='individual gearbox stage masses', shape=(3,1))
         self.add_output('mass', units='kg', desc='overall component mass')
-        self.add_output('cm', units='m', desc='center of mass of the component in [x,y,z] for an arbitrary coordinate system', shape=(3,1))
-        self.add_output('I', units='kg*m**2', desc=' moments of Inertia for the component [Ixx, Iyy, Izz] around its center of mass', shape=3)    
+        self.add_output('cm', units='m', desc='center of mass of the component in [x,y,z] for an arbitrary coordinate system', shape=3)
+        self.add_output('I', units='kg*m**2', desc=' moments of Inertia for the component [Ixx, Iyy, Izz] around its center of mass', shape=(3,1))    
         self.add_output('length', units='m', desc='gearbox length')
         self.add_output('height', units='m', desc='gearbox height')
         self.add_output('diameter', units='m', desc='gearbox diameter')
@@ -667,7 +669,7 @@ class Gearbox_drive(ExplicitComponent):
         rotor_speed = inputs['rotor_speed']
         rotor_diameter = inputs['rotor_diameter']
         rotor_torque = inputs['rotor_torque']
-        gearbox_cm = inputs['gearbox_cm']
+        gearbox_cm_x = inputs['gearbox_cm_x']
         #gear_configuration = inputs['gear_configuration']
         #ratio_type = inputs['ratio_type']
         #shaft_type = inputs['shaft_type']
@@ -694,14 +696,17 @@ class Gearbox_drive(ExplicitComponent):
         height = (0.015 * rotor_diameter)
         diameter = (0.75 * height)
 
-        cm0   = gearbox_cm
+        cm0   = gearbox_cm_x
         cm1   = 0.0
         cm2   = 0.4*height #TODO validate or adjust factor. origin is modified to be above bedplate top
         outputs['length'] = length
         outputs['height'] = height
         outputs['diameter'] = diameter
-        cm = np.array([cm0, cm1, cm2])
-        outputs['cm'] = np.reshape(cm, (3,1))
+        outputs['cm'] = np.array([cm0, cm1, cm2]) #np.ndarray(shape=(3,), buffer=np.array([cm0, cm1, cm2])) #np.ndarray([cm0, cm1, cm2])
+#         outputs['cm'][0] = cm0
+#         outputs['cm'][1] = cm1
+#         outputs['cm'][2] = cm2
+        #outputs['cm'] = np.reshape(cm, (3,1))
 
         I0 = mass * (diameter ** 2 ) / 8 + (mass / 2) * (height ** 2) / 8
         I1 = mass * (0.5 * (diameter ** 2) + (2 / 3) * (length ** 2) + 0.25 * (height ** 2)) / 8
@@ -722,19 +727,19 @@ class Bedplate_drive(ExplicitComponent):
     def setup(self):
         #variables
         self.add_input('gbx_length', units = 'm', desc = 'gearbox length')
-        self.add_input('gbx_location', units = 'm', desc = 'gearbox CM location', shape=3)
+        self.add_input('gbx_location', units = 'm', desc = 'gearbox CM location')
         self.add_input('gbx_mass', units = 'kg', desc = 'gearbox mass')
-        self.add_input('hss_location', units = 'm', desc='HSS CM location', shape=3)
+        self.add_input('hss_location', units = 'm', desc='HSS CM location')
         self.add_input('hss_mass', units = 'kg', desc='HSS mass')
-        self.add_input('generator_location', units = 'm', desc='generator CM location', shape=3)
+        self.add_input('generator_location', units = 'm', desc='generator CM location')
         self.add_input('generator_mass', units = 'kg', desc='generator mass')
-        self.add_input('lss_location', units = 'm', desc='LSS CM location', shape=3)
+        self.add_input('lss_location', units = 'm', desc='LSS CM location')
         self.add_input('lss_mass', units = 'kg', desc='LSS mass')
         self.add_input('lss_length', units = 'm', desc = 'LSS length')
-        self.add_input('mb1_location', units = 'm', desc='Upwind main bearing CM location', shape=3)
+        self.add_input('mb1_location', units = 'm', desc='Upwind main bearing CM location')
         self.add_input('FW_mb1', units = 'm', desc = 'Upwind main bearing facewidth')
         self.add_input('mb1_mass', units = 'kg', desc='Upwind main bearing mass')
-        self.add_input('mb2_location', units = 'm', desc='Downwind main bearing CM location', shape=3)
+        self.add_input('mb2_location', units = 'm', desc='Downwind main bearing CM location')
         self.add_input('mb2_mass', units = 'kg', desc='Downwind main bearing mass')
         #self.add_input('transformer_mass', units = 'kg', desc='Transformer mass')
         #self.add_input('transformer_location', units = 'm', desc = 'transformer CM location')
@@ -794,56 +799,58 @@ class Bedplate_drive(ExplicitComponent):
         
         
         [tf, tw, h0, b0, density, g, E, \
+         gbx_location, gbx_mass, rotorLoc, rotorFz, rotorMy, \
          rearTotalLength, frontTotalLength, convLoc, transLoc, convMass, \
          rootStress, totalTipDefl, stressTol, deflTol, \
-         rotorLoc, rotorFz, rotorMy,
          defl_denom, stress_mult, stressMax, deflMax] = setup_Bedplate(L_rb, rotor_diameter, \
                                         transformer_mass, transformer_location, \
                                         machine_rating, generator_location, \
                                         mb1_location, mb2_location, lss_location, tower_top_diameter, FW_mb1, \
                                         rotor_force_z, rotor_bending_moment_y, rotor_mass, gbx_location, gbx_mass )
-        
+            
         # transLoc, rearTotalLength
         counter = 0
         while rootStress*stress_mult - stressMax >  stressTol or totalTipDefl - deflMax >  deflTol:
-
+    
           counter += 1
-
-          totalSteelMass = characterize_Bedplate_Rear(tf, tw, h0, b0, density, g, E, rearTotalLength, \
+          #print counter
+    
+          [totalTipDefl, rootStress, totalSteelMass] = characterize_Bedplate_Rear(tf, tw, h0, b0, density, g, E, rearTotalLength, \
                                      hss_location, hss_mass, generator_location, generator_mass, \
                                      convLoc, convMass, transLoc, transformer_mass, gbx_location, gbx_mass)
-
+    
           tf += 0.002 
           tw += 0.002
           b0 += 0.006
           h0 += 0.006
           rearCounter = counter
-
+    
         rearHeight = h0
-
+    
         #Front cast section:
-        [rootStress, stress_mult, stressMax, stressTol, \
-         totalTipDefl, deflMax, deflTol, \
-         tf, tw, h0, b0, castDensity, g, E] = setup_Bedplate_Front(gbx_location, gbx_mass, frontTotalLength, defl_denom)
-
+        [rootStress, totalTipDefl, deflMax, stressMax, \
+         gbx_location, gbx_mass, \
+         tf, tw, h0, b0, castDensity, E] = setup_Bedplate_Front(gbx_location, gbx_mass, frontTotalLength, defl_denom)
+    
         counter = 0
-
+    
         while rootStress*stress_mult - stressMax >  stressTol or totalTipDefl - deflMax >  deflTol:
           counter += 1
-          [totalCastMass] = characterize_Bedplate_Front(tf, tw, h0, b0, castDensity, g, E, frontTotalLength, \
+          #print counter
+          [totalTipDefl, rootStress, totalCastMass] = characterize_Bedplate_Front(tf, tw, h0, b0, castDensity, g, E, frontTotalLength, \
                                       gbx_location, gbx_mass, mb1_location, mb1_mass, \
                                       mb2_location, mb2_mass, lss_location, lss_mass, \
-                                      rotorLoc, rotor_mass, rotorFz)
+                                      rotorLoc, rotor_mass, rotorFz, rotorMy)
           tf += 0.002 
           tw += 0.002
           b0 += 0.006
           h0 += 0.006
-
+    
           frontCounter=counter
         
         frontHeight = h0
           
-        [mass, cm, I, length, width, depth] = size_Bedplate(b0, rotor_diameter, tower_top_diameter, frontHeight, rearHeight, \
+        [mass, cm, I, length, width, height] = size_Bedplate(b0, rotor_diameter, tower_top_diameter, frontHeight, rearHeight, \
                                                             frontTotalLength, rearTotalLength, totalCastMass, totalSteelMass)
 
         outputs['mass'] = mass
@@ -903,7 +910,8 @@ class HighSpeedSide_drive(ExplicitComponent):
         
         mechBrakeMass = (0.5 * highSpeedShaftMass)      # relationship derived from HSS multiplier for University of Sunderland model compared to NREL CSM for 750 kW and 1.5 MW turbines
         
-        outputs['mass'] = (mechBrakeMass + highSpeedShaftMass)
+        mass = (mechBrakeMass + highSpeedShaftMass)
+        outputs['mass'] = mass
         
         diameter = (1.5 * lss_diameter)                     # based on WindPACT relationships for full HSS / mechanical brake assembly
         if hss_length == 0:
@@ -1237,69 +1245,74 @@ class RNASystemAdder_drive(ExplicitComponent):
 
 
 
-class NacelleGS(Group):
-    def setup(self):
-        
-        self.add_subsystem('gearbox', Gearbox_drive(), promotes_outputs=[('mass', 'gearbox_mass')])
-        self.add_subsystem('lowSpeedShaft', LowSpeedShaft_drive3pt(), promotes_outputs=[('mass', 'low_speed_shaft_mass')])
-        self.add_subsystem('mainBearing', MainBearing_drive(), promotes_outputs=[('mass', 'main_bearing_mass'), ('cm', 'MB1_location')])
-        self.add_subsystem('secondBearing',SecondBearing_drive(), promotes_outputs=[('mass', 'second_bearing_mass')])
-        self.add_subsystem('highSpeedSide', HighSpeedSide_drive(), promotes_outputs=[('mass', 'high_speed_side_mass')])
-        self.add_subsystem('generator', Generator_drive(), promotes_outputs=[('mass', 'generator_mass')])
-        self.add_subsystem('bedplate', Bedplate_drive(), promotes_outputs=[('mass', 'bedplate_mass')])
-        self.add_subsystem('above_yaw_massAdder', AboveYawMassAdder_drive())
-        self.add_subsystem('yawSystem', YawSystem_drive(), promotes_outputs=[('mass', 'yaw_system_mass')])
-        self.add_subsystem('rna', RNASystemAdder_drive())
-        self.add_subsystem('nacelleSystem', NacelleSystemAdder_drive(), promotes_outputs=['nacelle_mass', 'nacelle_cm', 'nacelle_I'])
-        
-        self.connect('gearbox.mass', ['lowSpeedShaft.gearbox_mass', 'bedplate.gbx_mass', 'above_yaw_massAdder.gearbox_mass', 'rna.gearbox_mass', 'nacelleSystem.gearbox_mass'])
-        self.connect('gearbox.cm', ['lowSpeedShaft.gearbox_cm', 'highSpeedSide.gearbox_cm', 'bedplate.gbx_location', 'rna.gearbox_cm', 'nacelleSystem.gearbox_cm'])
-        self.connect('gearbox.length', ['lowSpeedShaft.gearbox_length', 'highSpeedSide.gearbox_length', 'bedplate.gbx_length'])
-        self.connect('gearbox.height', ['highSpeedSide.gearbox_height'])
-        self.connect('gearbox.I', ['nacelleSystem.gearbox_I'])
-        
-        self.connect('lowSpeedShaft.mass', ['bedplate.lss_mass', 'above_yaw_massAdder.lss_mass', 'rna.lss_mass', 'nacelleSystem.lss_mass'])
-        self.connect('lowSpeedShaft.cm', ['bedplate.lss_location', 'rna.lss_cm', 'nacelleSystem.lss_cm'])
-        self.connect('lowSpeedShaft.length', ['bedplate.lss_length'])
-        self.connect('lowSpeedShaft.FW_mb', ['bedplate.FW_mb1'])
-        self.connect('lowSpeedShaft.I', ['nacelleSystem.lss_I'])
-        
-        self.connect('lowSpeedShaft.bearing_mass1', ['mainBearing.bearing_mass', 'bedplate.mb1_mass', 'above_yaw_massAdder.main_bearing_mass', 'rna.main_bearing_mass', 'nacelleSystem.main_bearing_mass'])
-        self.connect('lowSpeedShaft.diameter1', ['mainBearing.lss_diameter', 'highSpeedSide.lss_diameter'] )
-        #self.connect('lowSpeedShaft.design_torque', ['mainBearing.lss_design_torque', 'secondBearing.lss_design_torque'])
-        self.connect('lowSpeedShaft.bearing_location1', ['mainBearing.location', 'bedplate.mb1_location', 'rna.main_bearing_cm', 'nacelleSystem.main_bearing_cm'])
-        self.connect('mainBearing.I', ['nacelleSystem.main_bearing_I'])
-        
-        self.connect('lowSpeedShaft.bearing_mass2', ['secondBearing.bearing_mass', 'bedplate.mb2_mass', 'above_yaw_massAdder.second_bearing_mass', 'rna.second_bearing_mass', 'nacelleSystem.second_bearing_mass'])
-        self.connect('lowSpeedShaft.diameter2', 'secondBearing.lss_diameter')
-        self.connect('lowSpeedShaft.bearing_location2', ['secondBearing.location', 'bedplate.mb2_location', 'rna.second_bearing_cm', 'nacelleSystem.second_bearing_cm'])
-        self.connect('secondBearing.I', ['nacelleSystem.second_bearing_I'])       
-
-        
-        self.connect('highSpeedSide.mass', ['bedplate.hss_mass', 'above_yaw_massAdder.hss_mass', 'rna.hss_mass', 'nacelleSystem.hss_mass'])
-        self.connect('highSpeedSide.length', ['generator.highSpeedSide_length'])
-        self.connect('highSpeedSide.cm', ['generator.highSpeedSide_cm', 'bedplate.hss_location', 'rna.hss_cm', 'nacelleSystem.hss_cm'])
-        self.connect('highSpeedSide.I', ['nacelleSystem.hss_I'])
-        
-        self.connect('generator.cm', ['bedplate.generator_location', 'rna.generator_cm', 'nacelleSystem.generator_cm'])
-        self.connect('generator.mass', ['bedplate.generator_mass', 'above_yaw_massAdder.generator_mass', 'rna.generator_mass', 'nacelleSystem.generator_mass'])
-        self.connect('generator.I', ['nacelleSystem.generator_I'])
-        
-        self.connect('bedplate.mass', ['above_yaw_massAdder.bedplate_mass', 'nacelleSystem.bedplate_mass'])
-        self.connect('bedplate.length', ['above_yaw_massAdder.bedplate_length'])
-        self.connect('bedplate.width', ['above_yaw_massAdder.bedplate_width'])
-        self.connect('bedplate.height', ['yawSystem.bedplate_height'])
-        self.connect('bedplate.cm', ['nacelleSystem.bedplate_cm'])
-        self.connect('bedplate.I', ['nacelleSystem.bedplate_I'])
-        
-        self.connect('above_yaw_massAdder.above_yaw_mass', ['yawSystem.above_yaw_mass', 'nacelleSystem.above_yaw_mass'])
-        self.connect('above_yaw_massAdder.mainframe_mass', ['nacelleSystem.mainframe_mass'])
-        
-        self.connect('yawSystem.mass', ['rna.yawMass', 'nacelleSystem.yawMass'])
-        
-        
-        
-        self.nonlinear_solver = NonlinearBlockGS()
+# class NacelleGS(Group):
+#     def setup(self):
+#         
+#         self.add_subsystem('gearbox', Gearbox_drive(), promotes_outputs=[('mass', 'gearbox_mass')])
+#         self.add_subsystem('lowSpeedShaft', LowSpeedShaft_drive3pt(), promotes_outputs=[('mass', 'low_speed_shaft_mass')])
+#         self.add_subsystem('mainBearing', MainBearing_drive(), promotes_outputs=[('mass', 'main_bearing_mass'), ('cm', 'MB1_location')])
+#         self.add_subsystem('secondBearing',SecondBearing_drive(), promotes_outputs=[('mass', 'second_bearing_mass')])
+#         self.add_subsystem('highSpeedSide', HighSpeedSide_drive(), promotes_outputs=[('mass', 'high_speed_side_mass')])
+#         self.add_subsystem('generator', Generator_drive(), promotes_outputs=[('mass', 'generator_mass')])
+#         self.add_subsystem('bedplate', Bedplate_drive(), promotes_outputs=[('mass', 'bedplate_mass')])
+#         self.add_subsystem('above_yaw_massAdder', AboveYawMassAdder_drive())
+#         self.add_subsystem('yawSystem', YawSystem_drive(), promotes_outputs=[('mass', 'yaw_system_mass')])
+#         self.add_subsystem('rna', RNASystemAdder_drive())
+#         self.add_subsystem('nacelleSystem', NacelleSystemAdder_drive(), promotes_outputs=['nacelle_mass', 'nacelle_cm', 'nacelle_I'])
+#         
+#         self.connect('gearbox.mass', ['lowSpeedShaft.gearbox_mass', 'bedplate.gbx_mass', 'above_yaw_massAdder.gearbox_mass', 'rna.gearbox_mass', 'nacelleSystem.gearbox_mass'])
+#         self.connect('gearbox.cm', ['lowSpeedShaft.gearbox_cm', 'highSpeedSide.gearbox_cm', 'bedplate.gbx_location', 'rna.gearbox_cm', 'nacelleSystem.gearbox_cm'])
+#         self.connect('gearbox.length', ['lowSpeedShaft.gearbox_length', 'highSpeedSide.gearbox_length', 'bedplate.gbx_length'])
+#         self.connect('gearbox.height', ['highSpeedSide.gearbox_height'])
+#         self.connect('gearbox.I', ['nacelleSystem.gearbox_I'])
+#         
+#         self.connect('lowSpeedShaft.mass', ['bedplate.lss_mass', 'above_yaw_massAdder.lss_mass', 'rna.lss_mass', 'nacelleSystem.lss_mass'])
+#         self.connect('lowSpeedShaft.cm', ['bedplate.lss_location', 'rna.lss_cm', 'nacelleSystem.lss_cm'])
+#         self.connect('lowSpeedShaft.length', ['bedplate.lss_length'])
+#         self.connect('lowSpeedShaft.FW_mb', ['bedplate.FW_mb1'])
+#         self.connect('lowSpeedShaft.I', ['nacelleSystem.lss_I'])
+#         self.connect('lowSpeedShaft.bearing_mass1', 'mainBearing.bearing_mass')
+#         self.connect('lowSpeedShaft.bearing_mass2', 'secondBearing.bearing_mass')
+#         self.connect('lowSpeedShaft.bearing_location1', 'mainBearing.location')
+#         self.connect('lowSpeedShaft.bearing_location2', 'secondBearing.location')
+#         self.connect('lowSpeedShaft.diameter1', ['mainBearing.lss_diameter', 'highSpeedSide.lss_diameter'])
+#         self.connect('lowSpeedShaft.diameter2', 'secondBearing.lss_diameter')
+#         
+#         self.connect('mainBearing.bearing_mass', ['bedplate.mb1_mass', 'above_yaw_massAdder.main_bearing_mass', 'rna.main_bearing_mass', 'nacelleSystem.main_bearing_mass'])
+#         #self.connect('lowSpeedShaft.design_torque', ['mainBearing.lss_design_torque', 'secondBearing.lss_design_torque'])
+#         self.connect('lowSpeedShaft.bearing_location1', ['mainBearing.location', 'bedplate.mb1_location', 'rna.main_bearing_cm', 'nacelleSystem.main_bearing_cm'])
+#         self.connect('mainBearing.I', ['nacelleSystem.main_bearing_I'])
+#         
+#         self.connect('lowSpeedShaft.bearing_mass2', ['secondBearing.bearing_mass', 'bedplate.mb2_mass', 'above_yaw_massAdder.second_bearing_mass', 'rna.second_bearing_mass', 'nacelleSystem.second_bearing_mass'])
+#         self.connect('lowSpeedShaft.diameter2', 'secondBearing.lss_diameter')
+#         self.connect('lowSpeedShaft.bearing_location2', ['secondBearing.location', 'bedplate.mb2_location', 'rna.second_bearing_cm', 'nacelleSystem.second_bearing_cm'])
+#         self.connect('secondBearing.I', ['nacelleSystem.second_bearing_I'])       
+# 
+#         
+#         self.connect('highSpeedSide.mass', ['bedplate.hss_mass', 'above_yaw_massAdder.hss_mass', 'rna.hss_mass', 'nacelleSystem.hss_mass'])
+#         self.connect('highSpeedSide.length', ['generator.highSpeedSide_length'])
+#         self.connect('highSpeedSide.cm', ['generator.highSpeedSide_cm', 'bedplate.hss_location', 'rna.hss_cm', 'nacelleSystem.hss_cm'])
+#         self.connect('highSpeedSide.I', ['nacelleSystem.hss_I'])
+#         
+#         self.connect('generator.cm', ['bedplate.generator_location', 'rna.generator_cm', 'nacelleSystem.generator_cm'])
+#         self.connect('generator.mass', ['bedplate.generator_mass', 'above_yaw_massAdder.generator_mass', 'rna.generator_mass', 'nacelleSystem.generator_mass'])
+#         self.connect('generator.I', ['nacelleSystem.generator_I'])
+#         
+#         self.connect('bedplate.mass', ['above_yaw_massAdder.bedplate_mass', 'nacelleSystem.bedplate_mass'])
+#         self.connect('bedplate.length', ['above_yaw_massAdder.bedplate_length'])
+#         self.connect('bedplate.width', ['above_yaw_massAdder.bedplate_width'])
+#         self.connect('bedplate.height', ['yawSystem.bedplate_height'])
+#         self.connect('bedplate.cm', ['nacelleSystem.bedplate_cm'])
+#         self.connect('bedplate.I', ['nacelleSystem.bedplate_I'])
+#         
+#         self.connect('above_yaw_massAdder.above_yaw_mass', ['yawSystem.above_yaw_mass', 'nacelleSystem.above_yaw_mass'])
+#         self.connect('above_yaw_massAdder.mainframe_mass', ['nacelleSystem.mainframe_mass'])
+#         
+#         self.connect('yawSystem.mass', ['rna.yawMass', 'nacelleSystem.yawMass'])
+#         
+#         
+#         
+#         self.nonlinear_solver = NonlinearBlockGS()
         
 
 
@@ -1343,7 +1356,7 @@ class NacelleSE(Group):
         i.add_output('flange_length', units='m', desc='flange length', val=0.5)
         i.add_output('overhang', units='m', desc='Overhang distance', val=5.0)
         i.add_output('L_rb', units='m', desc='distance between hub center and upwind main bearing', val=1.912)
-        i.add_output('gearbox_cm', units = 'm', desc = 'distance from tower-top center to gearbox cm--negative for upwind', shape=3)
+        i.add_output('gearbox_cm_x', units = 'm', desc = 'distance from tower-top center to gearbox cm--negative for upwind', val=0.0)
         i.add_output('tower_top_diameter', units='m', desc='diameter of tower top', val=3.78)
         i.add_output('hss_length', units = 'm', desc = 'optional high speed shaft length determined by user')
         
@@ -1446,41 +1459,47 @@ class NacelleSE(Group):
         self.connect('dof.flange_length', ['bedplate.flange_length','lowSpeedShaft.flange_length'])
         self.connect('dof.overhang',['lowSpeedShaft.overhang','bedplate.overhang', 'rna.overhang'])
         self.connect('dof.L_rb', ['lowSpeedShaft.L_rb','bedplate.L_rb'])
-        self.connect('dof.gearbox_cm', 'gearbox.gearbox_cm')
+        self.connect('dof.gearbox_cm_x', 'gearbox.gearbox_cm_x')
         self.connect('dof.tower_top_diameter', ['bedplate.tower_top_diameter', 'yawSystem.tower_top_diameter'])
         self.connect('dof.hss_length', 'highSpeedSide.hss_length')
+        
+        
 
 
         self.connect('gearbox.mass', ['lowSpeedShaft.gearbox_mass', 'bedplate.gbx_mass', 'above_yaw_massAdder.gearbox_mass', 'rna.gearbox_mass', 'nacelleSystem.gearbox_mass'])
-        self.connect('gearbox.cm', ['lowSpeedShaft.gearbox_cm', 'highSpeedSide.gearbox_cm', 'bedplate.gbx_location', 'rna.gearbox_cm', 'nacelleSystem.gearbox_cm'])
+        self.connect('gearbox.cm', ['lowSpeedShaft.gearbox_cm', 'highSpeedSide.gearbox_cm', 'rna.gearbox_cm', 'nacelleSystem.gearbox_cm'])
         self.connect('gearbox.length', ['lowSpeedShaft.gearbox_length', 'highSpeedSide.gearbox_length', 'bedplate.gbx_length'])
         self.connect('gearbox.height', ['highSpeedSide.gearbox_height'])
         self.connect('gearbox.I', ['nacelleSystem.gearbox_I'])
         
         self.connect('lowSpeedShaft.mass', ['bedplate.lss_mass', 'above_yaw_massAdder.lss_mass', 'rna.lss_mass', 'nacelleSystem.lss_mass'])
-        self.connect('lowSpeedShaft.cm', ['bedplate.lss_location', 'rna.lss_cm', 'nacelleSystem.lss_cm'])
+        self.connect('lowSpeedShaft.cm', ['rna.lss_cm', 'nacelleSystem.lss_cm'])
         self.connect('lowSpeedShaft.length', ['bedplate.lss_length'])
         self.connect('lowSpeedShaft.FW_mb', ['bedplate.FW_mb1'])
         self.connect('lowSpeedShaft.I', ['nacelleSystem.lss_I'])
-        
-        self.connect('lowSpeedShaft.bearing_mass1', ['mainBearing.bearing_mass', 'bedplate.mb1_mass', 'above_yaw_massAdder.main_bearing_mass', 'rna.main_bearing_mass', 'nacelleSystem.main_bearing_mass'])
-        self.connect('lowSpeedShaft.diameter1', ['mainBearing.lss_diameter', 'highSpeedSide.lss_diameter'] )
+        self.connect('lowSpeedShaft.bearing_mass1', 'mainBearing.bearing_mass')
+        self.connect('lowSpeedShaft.bearing_mass2', 'secondBearing.bearing_mass')
+        self.connect('lowSpeedShaft.bearing_location1', 'mainBearing.location')
+        self.connect('lowSpeedShaft.bearing_location2', 'secondBearing.location')
+        self.connect('lowSpeedShaft.diameter1', ['mainBearing.lss_diameter', 'highSpeedSide.lss_diameter'])
+        self.connect('lowSpeedShaft.diameter2', 'secondBearing.lss_diameter')
         #self.connect('lowSpeedShaft.design_torque', ['mainBearing.lss_design_torque', 'secondBearing.lss_design_torque'])
-        self.connect('lowSpeedShaft.bearing_location1', ['mainBearing.location', 'bedplate.mb1_location', 'rna.main_bearing_cm', 'nacelleSystem.main_bearing_cm'])
+        
+        self.connect('mainBearing.mass', ['bedplate.mb1_mass', 'above_yaw_massAdder.main_bearing_mass', 'rna.main_bearing_mass', 'nacelleSystem.main_bearing_mass'])
+        self.connect('mainBearing.cm', ['rna.main_bearing_cm', 'nacelleSystem.main_bearing_cm'])
         self.connect('mainBearing.I', ['nacelleSystem.main_bearing_I'])
         
-        self.connect('lowSpeedShaft.bearing_mass2', ['secondBearing.bearing_mass', 'bedplate.mb2_mass', 'above_yaw_massAdder.second_bearing_mass', 'rna.second_bearing_mass', 'nacelleSystem.second_bearing_mass'])
-        self.connect('lowSpeedShaft.diameter2', 'secondBearing.lss_diameter')
-        self.connect('lowSpeedShaft.bearing_location2', ['secondBearing.location', 'bedplate.mb2_location', 'rna.second_bearing_cm', 'nacelleSystem.second_bearing_cm'])
+        self.connect('secondBearing.mass', ['bedplate.mb2_mass', 'above_yaw_massAdder.second_bearing_mass', 'rna.second_bearing_mass', 'nacelleSystem.second_bearing_mass'])
+        self.connect('secondBearing.cm', ['rna.second_bearing_cm', 'nacelleSystem.second_bearing_cm'])
         self.connect('secondBearing.I', ['nacelleSystem.second_bearing_I'])       
 
         
         self.connect('highSpeedSide.mass', ['bedplate.hss_mass', 'above_yaw_massAdder.hss_mass', 'rna.hss_mass', 'nacelleSystem.hss_mass'])
         self.connect('highSpeedSide.length', ['generator.highSpeedSide_length'])
-        self.connect('highSpeedSide.cm', ['generator.highSpeedSide_cm', 'bedplate.hss_location', 'rna.hss_cm', 'nacelleSystem.hss_cm'])
+        self.connect('highSpeedSide.cm', ['generator.highSpeedSide_cm', 'rna.hss_cm', 'nacelleSystem.hss_cm'])
         self.connect('highSpeedSide.I', ['nacelleSystem.hss_I'])
         
-        self.connect('generator.cm', ['bedplate.generator_location', 'rna.generator_cm', 'nacelleSystem.generator_cm'])
+        self.connect('generator.cm', ['rna.generator_cm', 'nacelleSystem.generator_cm'])
         self.connect('generator.mass', ['bedplate.generator_mass', 'above_yaw_massAdder.generator_mass', 'rna.generator_mass', 'nacelleSystem.generator_mass'])
         self.connect('generator.I', ['nacelleSystem.generator_I'])
         
@@ -1490,6 +1509,13 @@ class NacelleSE(Group):
         self.connect('bedplate.height', ['yawSystem.bedplate_height'])
         self.connect('bedplate.cm', ['nacelleSystem.bedplate_cm'])
         self.connect('bedplate.I', ['nacelleSystem.bedplate_I'])
+        
+        self.connect('gearbox.cm', 'bedplate.gbx_location', src_indices=[0])
+        self.connect('highSpeedSide.cm', 'bedplate.hss_location', src_indices=[0])
+        self.connect('generator.cm', 'bedplate.generator_location', src_indices=[0])
+        self.connect('lowSpeedShaft.cm', 'bedplate.lss_location', src_indices=[0])
+        self.connect('mainBearing.cm', 'bedplate.mb1_location', src_indices=[0])
+        self.connect('secondBearing.cm', 'bedplate.mb2_location', src_indices=[0])
         
         self.connect('above_yaw_massAdder.above_yaw_mass', ['yawSystem.above_yaw_mass', 'nacelleSystem.above_yaw_mass'])
         self.connect('above_yaw_massAdder.mainframe_mass', ['nacelleSystem.mainframe_mass'])
@@ -1511,6 +1537,7 @@ class NacelleSE(Group):
 if __name__ == "__main__":
     
     from openmdao.api import Problem, view_model
+    start = time()
     
     
     # get and set values of the variables using Problem
@@ -1538,15 +1565,16 @@ if __name__ == "__main__":
     prob['dof.flange_length'] = 0.5
     prob['dof.overhang'] = 5.
     prob['dof.L_rb'] = 1.912
-    prob['dof.gearbox_cm'] = [0.0, 0.0, 0.0]
+    prob['dof.gearbox_cm_x'] = 0.0
     prob['dof.tower_top_diameter'] = 3.78
     prob['dof.hss_length'] = 0.
     
     
-    #view_model(prob)
+    view_model(prob, outfile='nacelle.html')
     prob.run_model()
     
-    print prob['nacelleSystem.nacelle_mass'] 
+    print prob['nacelleSystem.nacelle_I'] 
+    print(time() - start, "seconds", clock())
     #print prob['nacelle_I'] 
                
         
