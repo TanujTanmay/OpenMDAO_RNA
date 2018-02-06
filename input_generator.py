@@ -1,3 +1,7 @@
+import pandas as pd
+import numpy as np
+from airfoilpy import Polar, Airfoil
+import re
 
 # ------------------- COMMON ROUTINES ----------------------------
 def buffer_header(header):
@@ -353,12 +357,160 @@ def set_blade_file():
     
     
     
+# ------------------- AIRFOIL FILE ----------------------------         
+
+def read_airfoil(airfoil_file, file_type):
+    
+    if file_type == 'AeroDyn':
+        with open(airfoil_file) as f:
+            for line in f:
+                # search for Reynold's number
+                reynolds_match = re.search('(?<=Reynolds number,)\w+', line)
+                if reynolds_match:
+                    reynolds_number = reynolds_match.group(0)
+                
+                # skip rows until you reach the main table
+                table_start = re.match('![\s]+Alpha', line)
+                if table_start:
+                    break
+                
+            table = pd.read_table(f, delim_whitespace=True, index_col=False, header=None, \
+                                  names=['Alpha','Cl','Cd', 'Cm'], usecols=[0, 1, 2, 3], \
+                                  skiprows=1, skipfooter=3, engine='python')
         
+    else:
+        with open(airfoil_file) as f:
+            for line in f:
+                # search for Reynold's number
+                reynolds_match = re.search('(?<=Reynolds number,)\w+', line)
+                if reynolds_match:
+                    reynolds_number = reynolds_match.group(0)
+                
+                # skip rows until you reach the main table
+                table_start = re.match('Alpha', line)
+                if table_start:
+                    break
+                
+            table = pd.read_table(f, sep=',', index_col=False, header=None, \
+                                  names=['Alpha','Cl','Cd', 'Cm'], usecols=[0, 1, 2, 4], \
+                                  skiprows=0, skipfooter=0, engine='python')
+            
+            
+    
+    alpha =  table.as_matrix(columns=['Alpha'])
+    alpha = alpha.T[0]
+    
+    cl =  table.as_matrix(columns=['Cl'])
+    cl = cl.T[0]
+    
+    cd =  table.as_matrix(columns=['Cd'])
+    cd = cd.T[0]
+    
+    cm =  table.as_matrix(columns=['Cm'])
+    cm = cm.T[0]
+    
+    result = [float(reynolds_number), alpha, cl, cd, cm]    
+    return result
+
+
+
+def gen_airfoil_file(airfoil_file, polar):
+    
+    # create the file to write
+    f = open(airfoil_file, 'w')
+    
+    
+    # Section 1: Definition
+    f.write('! ------------ AirfoilInfo v1.01.x Input File ----------------------------------\n')
+    f.write('! NREL 5.0 MW offshore baseline aerodynamic blade input properties \n')
+    f.write('! ------------------------------------------------------------------------------\n')
+    
+    # Section 2: Airfoil Parameters
+    f.write('"DEFAULT"    InterpOrd   \t ! Interpolation order to use for quasi-steady table lookup {1=linear; 3=cubic spline; "default"} [default=3]\n')
+    f.write('1            NonDimArea  \t ! The non-dimensional area of the airfoil (area/chord^2) (set to 1.0 if unsure or unneeded)\n')
+    f.write('0            NumCoords   \t ! The number of coordinates in the airfoil shape file.  Set to zero if coordinates not included.\n')
+    f.write('! ......... x-y coordinates are next if NumCoords > 0 .............\n')
+    f.write('1            NumTabs     \t ! Number of airfoil tables in this file.  Each table must have lines for Re and Ctrl.\n')
+    
+    # Section 3: Polar Parameters
+    f.write('! ------------------------------------------------------------------------------\n')
+    f.write('! data for table 1\n')
+    f.write('! ------------------------------------------------------------------------------\n')
+    f.write(str(polar.Re/1e6) + '\t Re \t ! Reynolds number in millions\n')
+    f.write('0 \t Ctrl \t ! Control setting (must be 0 for current AirfoilInfo)\n')
+    f.write('False \t InclUAdata \t ! Is unsteady aerodynamics data included in this table? If TRUE, then include 30 UA coefficients below this line)\n')
+    f.write('!........................................\n')
+    
+    # Section 4: Polar Coordinates
+    f.write('! Table of aerodynamics coefficients\n')
+    f.write(str(len(polar.alpha)) + '\t NumAlf \t ! Number of data lines in the following table\n')
+    f.write('! \t Alpha \t Cl \t Cd \t Cm\n')
+    f.write('! \t (deg) \t (-) \t (-) \t (-)\n')
+    
+    for i in xrange(len(polar.alpha)):
+        f.write(format(round(polar.alpha[i], 2)) + '\t' + \
+                format(round(polar.cl[i], 4)) + '\t' + \
+                format(round(polar.cd[i], 4)) + '\t' + \
+                format(round(polar.cm[i], 4)) + '\n')
+    
+    
+    # close the file
+    f.close()
+
+
+def set_airfoil_file():
+    airfoil_file = 'airfoil.csv'
+    aspect_ratio = 17
+    
+    [Re, alpha, cl, cd, cm]  = read_airfoil('airfoil.csv', 'Non_AeroDyn')
+    p1 = Polar(Re, alpha, cl, cd, cm)
+    
+    af = Airfoil([p1])
+    #af = af.extrapolate(max(cd), aspect_ratio, min(cd))
+    
+    #af = af.correction3D(0.5, 0.15, 9)
+    #af = af.interpToCommonAlpha(np.arange(-180, 181))
+    gen_airfoil_file('output.dat', af.polars[0])
+    
+    
+        
+
+# ------------------- OUTPUT FILE ----------------------------  
+
+def read_output(output_file):
+    
+
+    with open(output_file) as f:
+        for line in f:            
+            # skip rows until you reach the main table
+            table_start = re.match('[\s]*Case', line)
+            if table_start:
+                break
+        
+#         table = pd.read_table(f, delim_whitespace=True, index_col=False, header=None, \
+#                                   names=['Alpha','Cl','Cd', 'Cm'], usecols=[0, 1, 2, 3], \
+#                                   skiprows=1, skipfooter=3, engine='python')
+            
+        table = pd.read_table(f, sep='\s+', index_col=False,  header=0, \
+                              #names=['Time','B1N1Alpha'], usecols=[0, 1], \
+                              skiprows=1, skipfooter=0, engine='python')
+            
+            
+    return table
+
+
+
     
 
 
     
 if __name__ == "__main__":
-    set_input_driver()
-    set_blade_file()
-    set_primary_input()
+#     set_input_driver()
+#     set_blade_file()
+#     set_primary_input()
+#     set_airfoil_file()
+    read_output('test.1.out')    
+        
+    
+    
+    
