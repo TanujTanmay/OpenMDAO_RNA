@@ -675,7 +675,7 @@ class Gearbox_drive(ExplicitComponent):
         #shaft_type = inputs['shaft_type']
         
         gear_configuration='epp'
-        ratio_type='optimal'
+        ratio_type='optimal' # 'empirical'
         shaft_type='normal'
 
         stageRatio=np.zeros([3,1])
