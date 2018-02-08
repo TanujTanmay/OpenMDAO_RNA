@@ -11,21 +11,9 @@ import os
 
 num_airfoils = 2
 num_nodes = 6
+spanwise_params = ['Alpha', 'Phi', 'AxInd', 'TnInd', 'Cl', 'Cd', 'Fx']
 
-
-class AirfoilPrep(ExplicitComponent):
-    def setup(self):
-        # variables
-        self.add_input('Airfoils', desc='list of airfoil names with extension (assumed to be in "Airfoils" folder)', shape=num_airfoils)
-        
-        # outputs
-        self.add_output('CorrectedAirfoils', desc='list of airfoil names with extension (assumed to be in "Airfoils" folder)', shape=num_airfoils)
-        
-    def compute(self, inputs, outputs):
-        Airfoils = inputs['Airfoils']    
-        
-        outputs['CorrectedAirfoils']  =   [set_airfoil_file(airfoil) for airfoil in Airfoils]
-        
+     
         
         
 
@@ -57,15 +45,16 @@ class RotorAero(ExplicitComponent):
         self.add_output('RtAeroCp', desc='rotor Cp')
         self.add_output('RtAeroCt', desc='rotor Ct')
         self.add_output('RtTSR', desc='rotor tip speed ratio')
-        self.add_output('Time', units = 's', desc='time steps in the series', shape=20)
-        self.add_output('RootCl', desc='time series of lift coefficient at blade root', shape=20)
-        self.add_output('RootCd', desc='time series of drag coefficient at blade root', shape=20)
-        self.add_output('SpanwiseCl', desc='Cl at each node', shape=num_nodes)
-        self.add_output('SpanwiseCd', desc='Cd at each node', shape=num_nodes)
-        self.add_output('SpanwiseAlpha', desc='angle of attack at each node', shape=num_nodes)
-        self.add_output('SpanwisePhi', desc='inflow angle at each node', shape=num_nodes)
-        self.add_output('SpanwiseAxInd', desc='axial induction at each node', shape=num_nodes)
-        self.add_output('SpanwiseTnInd', desc='tangential induction at each node', shape=num_nodes)
+        #self.add_output('Time', units = 's', desc='time steps in the series', shape=20)
+        for i in range(1, num_nodes+1):
+            var_name = 'B1N' + str(i) + 'Fx'
+            self.add_output(var_name, units = 'N/m', desc = 'time series of force per unit length normal to the plane', shape = 20)
+#         self.add_output('SpanwiseCl', desc='Cl at each node', shape=num_nodes)
+#         self.add_output('SpanwiseCd', desc='Cd at each node', shape=num_nodes)
+#         self.add_output('SpanwiseAlpha', desc='angle of attack at each node', shape=num_nodes)
+#         self.add_output('SpanwisePhi', desc='inflow angle at each node', shape=num_nodes)
+#         self.add_output('SpanwiseAxInd', desc='axial induction at each node', shape=num_nodes)
+#         self.add_output('SpanwiseTnInd', desc='tangential induction at each node', shape=num_nodes)
  
  
     def compute(self, inputs, outputs):
@@ -89,8 +78,9 @@ class RotorAero(ExplicitComponent):
         BlTwist = inputs['BlTwist']
         BlAFID = inputs['BlAFID']
         
-        root_name = 'test' + dt.datetime.now().strftime('%d_%H_%M')
+        root_name = 'test_' + dt.datetime.now().strftime('%d_%H_%M')
         output_file = root_name + '.1.out' 
+        
         CorrectedAirfoils  =   [set_airfoil_file(airfoil) for airfoil in Airfoils]    
             
         set_input_driver(root_name, NumBlades, HubRad, HubHt, Overhang, ShftTilt, Precone, \
@@ -105,28 +95,31 @@ class RotorAero(ExplicitComponent):
 #          
 
         
-        command = '.\\AeroDyn_Driver_x64.exe ' + root_name + '.dvr'
+        command = '.\\AeroDyn\\AeroDyn_Driver_x64.exe ' + root_name + '.dvr'
         print 'Executing: ' + command
         
         os.system(command)
         
-        [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, \
-        Time, RootCl, RootCd, \
-        SpanwiseCl, SpanwiseCd, SpanwiseAlpha, SpanwisePhi, \
-        SpanwiseAxInd, SpanwiseTnInd]   = read_output(output_file, BlSpn)   
+        [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, TimeSeries] = read_output(output_file, BlSpn)  
+#         SpanwiseCl, SpanwiseCd, SpanwiseAlpha, SpanwisePhi, \
+#         SpanwiseAxInd, SpanwiseTnInd]    
         
         outputs['RtAeroCp'] = RtAeroCp
         outputs['RtAeroCt'] = RtAeroCt
         outputs['RtTSR'] = RtTSR
-        outputs['Time'] = Time
-        outputs['RootCl'] = RootCl
-        outputs['RootCd'] = RootCd
-        outputs['SpanwiseCl'] = SpanwiseCl
-        outputs['SpanwiseCd'] = SpanwiseCd
-        outputs['SpanwiseAlpha'] = SpanwiseAlpha
-        outputs['SpanwisePhi'] = SpanwisePhi
-        outputs['SpanwiseAxInd'] = SpanwiseAxInd
-        outputs['SpanwiseTnInd'] = SpanwiseTnInd 
+        #outputs['Time'] = TimeSeries[0]
+        for i in range(1, num_nodes+1):
+            var_name = 'B1N' + str(i) + 'Fx'
+            outputs[var_name] = pd.Series(TimeSeries[i], dtype='float').tolist()
+            #exec(command)
+#         outputs['RootCl'] = RootCl
+#         outputs['RootCd'] = RootCd
+#         outputs['SpanwiseCl'] = SpanwiseCl
+#         outputs['SpanwiseCd'] = SpanwiseCd
+#         outputs['SpanwiseAlpha'] = SpanwiseAlpha
+#         outputs['SpanwisePhi'] = SpanwisePhi
+#         outputs['SpanwiseAxInd'] = SpanwiseAxInd
+#         outputs['SpanwiseTnInd'] = SpanwiseTnInd 
         
         
 
@@ -223,10 +216,13 @@ if __name__ == "__main__":
     prob.run_model()
      
     print "My Rotor"
-    print prob['aero.RtAeroCp']  # 31644.47
-    print prob['aero.RtTSR'] # 17003.98
-    print prob['aero.SpanwiseAxInd'] # 1810.50
-    print prob['aero.RootCd'] 
+    print prob['aero.RtAeroCp'] 
+    print pd.Series(prob['aero.RtTSR'], dtype='float').tolist()  
+    print pd.Series(prob['aero.B1N2Fx'], dtype='float').tolist()  
+    print pd.Series(prob['aero.B1N3Fx'] , dtype='float').tolist() 
+    print pd.Series(prob['aero.B1N4Fx'], dtype='float').tolist()  
+    print pd.Series(prob['aero.B1N5Fx'], dtype='float').tolist()  
+    print pd.Series(prob['aero.B1N6Fx'], dtype='float').tolist() 
  
   
     print 'Done in ' + str(time() - start) + 'seconds'

@@ -4,7 +4,8 @@ from airfoilprep import Polar, Airfoil
 import matplotlib.pyplot as plt
 import re
 
-spanwise_params = ['Alpha', 'Phi', 'AxInd', 'TnInd', 'Cl', 'Cd']
+spanwise_params = ['Alpha', 'Phi', 'AxInd', 'TnInd', 'Cl', 'Cd', 'Fx']
+aerodyn_folder = 'AeroDyn'
 
 
 # ------------------- COMMON ROUTINES ----------------------------
@@ -218,11 +219,11 @@ def set_primary_input(root_name, Airfoils, NBlOuts):
     Airfoils = ['"Airfoils/' + airfoil + '"' for airfoil in Airfoils]
     BlOutNd = ','.join([str(x) for x in range(1, NBlOuts + 1)])
     
-    spanwise_params = ['Alpha', 'Phi', 'AxInd', 'TnInd', 'Cl', 'Cd']
+    
     OutList = []
     
     OutList.append(['RtAeroCp', 'RtAeroCq', 'RtAeroCt', 'RtTSR']) # rotor properties
-    OutList.append(['B1N1Cl', 'B1N1Cd', 'B1N' + str(NBlOuts) + 'Clrnc']) # time series
+    #OutList.append(['B1N1Cl', 'B1N1Cd']) # time series, For clearance: 'B1N' + str(NBlOuts) + 'Clrnc'
     
     for i in range(1, NBlOuts+1):
         OutList.append(['B1N' + str(i) + x for x in spanwise_params])
@@ -254,8 +255,8 @@ def set_primary_input(root_name, Airfoils, NBlOuts):
                     ('TipLoss',   'Use the Prandtl tip-loss model? (flag) [used only when WakeMod=1]',                                                  True), \
                     ('HubLoss',   'Use the Prandtl hub-loss model? (flag) [used only when WakeMod=1]',                                                  True), \
                     ('TanInd',    'Include tangential induction in BEMT calculations? (flag) [used only when WakeMod=1]',                               True), \
-                    ('AIDrag',    'Include the drag term in the axial-induction calculation? (flag) [used only when WakeMod=1]',                        False), \
-                    ('TIDrag',    'Include the drag term in the tangential-induction calculation? (flag) [used only when WakeMod=1 and TanInd=TRUE]',   False), \
+                    ('AIDrag',    'Include the drag term in the axial-induction calculation? (flag) [used only when WakeMod=1]',                        True), \
+                    ('TIDrag',    'Include the drag term in the tangential-induction calculation? (flag) [used only when WakeMod=1 and TanInd=TRUE]',   True), \
                     ('IndToler',  'Convergence tolerance for BEMT nonlinear solve residual equation {or ""default""} (-) [used only when WakeMod=1]',   0.00005), \
                     ('MaxIter',   'Maximum number of iteration steps (-) [used only when WakeMod=1]',                                                   10000)
                 )
@@ -493,7 +494,7 @@ def set_airfoil_file(airfoil_file):
 
 def read_output(output_file, BlSpn):
     
-    
+    print 'Reading: ' + output_file
     with open(output_file) as f:
         for line in f:            
             # skip rows until you reach the main table
@@ -518,10 +519,15 @@ def read_output(output_file, BlSpn):
     RtAeroCt =  table.ix[0, 'RtAeroCt']
     RtTSR = table.ix[0, 'RtTSR']
     
-    Time = table.ix[:, 'Time']
-    B1N2Cl = table.ix[:, 'B1N2Cl']
-    B1N2Cd = table.ix[:, 'B1N2Cd']
+    TimeSeries = []
     
+    TimeSeries.append(table.ix[:, 'Time'])
+    
+    for i in range(1, len(BlSpn) + 1):
+        variable_name = 'B1N' + str(i) + 'Fx'
+        TimeSeries.append(table.ix[:, variable_name])
+    
+    # Plotting
     for param in spanwise_params:
         
         variable_name = "Spanwise" + param
@@ -531,8 +537,7 @@ def read_output(output_file, BlSpn):
             label = 'B1N' + str(i) + param
             command = variable_name + ".append(float(table.ix[0, '" + label + "']))"
             #print command
-            exec(command)
-        
+            exec(command)        
     
         # save the plots
         plt.close('all')
@@ -546,9 +551,9 @@ def read_output(output_file, BlSpn):
     
     
     
-    result = [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, \
-              Time, B1N2Cl, B1N2Cd, \
-              SpanwiseCl, SpanwiseCd, SpanwiseAlpha, SpanwisePhi, SpanwiseAxInd, SpanwiseTnInd]  
+    result = [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, TimeSeries]
+#               Time, B1N2Cl, B1N2Cd, \
+#               SpanwiseCl, SpanwiseCd, SpanwiseAlpha, SpanwisePhi, SpanwiseAxInd, SpanwiseTnInd]  
               
     return result
     #return table
@@ -565,16 +570,15 @@ if __name__ == "__main__":
 #     set_airfoil_file()
     BlSpn = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0]
 
-    [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, \
-    Time, B1N2Cl, B1N2Cd, \
-    SpanwiseCl, SpanwiseCd, SpanwiseAlpha, SpanwisePhi, \
-    SpanwiseAxInd, SpanwiseTnInd]   = read_output('test.1.out', BlSpn)   
+    [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, TimeSeries]   = read_output('test_08_15_12.1.out', BlSpn)   
     #print table.columns
     #print table.keys
         
     #print table.ix[1, 'B1N1Alpha']
     print RtAeroCp, RtAeroCq, RtAeroCt, RtTSR
-    print SpanwiseAxInd
+    print TimeSeries[3].tolist()
+    print  pd.Series(TimeSeries[3], dtype='float').tolist()
+    #print ', '.join(val)
     
 #     plt.plot(BlSpn, SpanwisePhi)
 #     plt.xlabel('Span [m]')
