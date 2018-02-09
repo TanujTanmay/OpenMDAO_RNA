@@ -215,14 +215,15 @@ if __name__ == "__main__":
      
     prob.run_model()
      
-    print "My Rotor"
-    print prob['aero.RtAeroCp'] 
-    print pd.Series(prob['aero.RtTSR'], dtype='float').tolist()  
-    print pd.Series(prob['aero.B1N2Fx'], dtype='float').tolist()  
-    print pd.Series(prob['aero.B1N3Fx'] , dtype='float').tolist() 
-    print pd.Series(prob['aero.B1N4Fx'], dtype='float').tolist()  
-    print pd.Series(prob['aero.B1N5Fx'], dtype='float').tolist()  
-    print pd.Series(prob['aero.B1N6Fx'], dtype='float').tolist() 
+#     print "My Rotor"
+#     print prob['aero.RtAeroCp'] 
+#     print pd.Series(prob['aero.RtTSR'], dtype='float').tolist() 
+#     print pd.Series(prob['aero.B1N1Fx'], dtype='float').tolist() 
+#     print pd.Series(prob['aero.B1N2Fx'], dtype='float').tolist()  
+#     print pd.Series(prob['aero.B1N3Fx'] , dtype='float').tolist() 
+#     print pd.Series(prob['aero.B1N4Fx'], dtype='float').tolist()  
+#     print pd.Series(prob['aero.B1N5Fx'], dtype='float').tolist()  
+#     print pd.Series(prob['aero.B1N6Fx'], dtype='float').tolist() 
  
   
     print 'Done in ' + str(time() - start) + 'seconds'
