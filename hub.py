@@ -310,7 +310,7 @@ if __name__ == "__main__":
 #     print prob['hub_system_cm']     
 #     print prob['hub_system_I']   
 #     print prob['hub_system_mass']   
-    print(time() - start, "seconds", clock())
+    print 'Done in ' + str(time() - start) + ' seconds'
                
         
         

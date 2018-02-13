@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import re
 
 spanwise_params = ['Alpha', 'Phi', 'AxInd', 'TnInd', 'Cl', 'Cd', 'Fx']
+rotor_params = ['RtAeroPwr', 'RtAeroCp', 'RtAeroCq', 'RtAeroCt', 'RtTSR', 'RtArea', \
+                    'RtAeroFxh', 'RtAeroFyh', 'RtAeroFzh', \
+                    'RtAeroMxh', 'RtAeroMyh', 'RtAeroMzh']
 aerodyn_folder = 'AeroDyn'
 
 
@@ -221,8 +224,11 @@ def set_primary_input(root_name, Airfoils, NBlOuts):
     
     
     OutList = []
+    OutList.append(rotor_params) # rotor properties
     
-    OutList.append(['RtAeroCp', 'RtAeroCq', 'RtAeroCt', 'RtTSR']) # rotor properties
+#     OutList.append(['RtAeroPwr', 'RtAeroCp', 'RtAeroCq', 'RtAeroCt', 'RtTSR', \
+#                     'RtAeroFxh', 'RtAeroFyh', 'RtAeroFzh', \
+#                     'RtAeroMxh', 'RtAeroMyh', 'RtAeroMzh']) 
     #OutList.append(['B1N1Cl', 'B1N1Cd']) # time series, For clearance: 'B1N' + str(NBlOuts) + 'Clrnc'
     
     for i in range(1, NBlOuts+1):
@@ -514,10 +520,15 @@ def read_output(output_file, BlSpn):
     # drop first row that has the units
     table = table.drop([0]).reset_index(drop=True)
     
-    RtAeroCp =  table.ix[0, 'RtAeroCp']
-    RtAeroCq =  table.ix[0, 'RtAeroCq']
-    RtAeroCt =  table.ix[0, 'RtAeroCt']
-    RtTSR = table.ix[0, 'RtTSR']
+    
+#     RtAeroCp =  table.ix[0, 'RtAeroCp']
+#     RtAeroCq =  table.ix[0, 'RtAeroCq']
+#     RtAeroCt =  table.ix[0, 'RtAeroCt']
+#     RtTSR = table.ix[0, 'RtTSR']
+    
+    for param in rotor_params:
+        command = param + " = table.ix[0, '" + param + "']"
+        exec(command)
     
     TimeSeries = []
     
@@ -551,7 +562,11 @@ def read_output(output_file, BlSpn):
     
     
     
-    result = [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, TimeSeries]
+    #result = [RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, TimeSeries]
+    
+    result = [RtAeroPwr, RtAeroCp, RtAeroCq, RtAeroCt, RtTSR, RtArea, \
+         RtAeroFxh, RtAeroFyh, RtAeroFzh, RtAeroMxh, RtAeroMyh, RtAeroMzh, \
+         TimeSeries]
 #               Time, B1N2Cl, B1N2Cd, \
 #               SpanwiseCl, SpanwiseCd, SpanwiseAlpha, SpanwisePhi, SpanwiseAxInd, SpanwiseTnInd]  
               

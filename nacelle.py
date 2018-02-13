@@ -285,10 +285,10 @@ class LowSpeedShaft_drive3pt(ExplicitComponent):
         rotor_diameter = inputs['rotor_diameter']
         machine_rating = inputs['machine_rating']
         gearbox_mass = inputs['gearbox_mass']
-        carrier_mass = inputs['carrier_mass']
+        carrier_mass = inputs['carrier_mass'] # http://www.ntnglobal.com/en/products/review/pdf/NTN_TR76_en_p113_120.pdf
         overhang = inputs['overhang']
         L_rb = inputs['L_rb']
-        shrink_disc_mass = inputs['shrink_disc_mass']
+        shrink_disc_mass = inputs['shrink_disc_mass'] # http://www.ringfeder.com/international/applications/energies/renewable/wind-turbine---shrink-discs-rfn-4051/wind-turbine---shrink-discs-rfn-4051/
         gearbox_cm = inputs['gearbox_cm']
         gearbox_length = inputs['gearbox_length']
         flange_length = inputs['flange_length']
@@ -462,11 +462,13 @@ class LowSpeedShaft_drive3pt(ExplicitComponent):
 
         [D_max_a,FW_max,bearingmass] = resize_for_bearings(D_max,  mb1Type,False)
         [D_min_a,FW_min,trash] = resize_for_bearings(D_min,  mb2Type,False) #mb2 is a representation of the gearbox connection
+        
+        #D_in = 1.68
             
         lss_mass_new=(pi/3)*(D_max_a**2+D_min_a**2+D_max_a*D_min_a)*(L_ms-(FW_max+FW_min)/2)*density/4+ \
                          (pi/4)*(D_max_a**2-D_in**2)*density*FW_max+\
                          (pi/4)*(D_min_a**2-D_in**2)*density*FW_min-\
-                         (pi/4)*(D_in**2)*density*(L_ms+(FW_max+FW_min)/2)
+                         (pi/4)*(D_in**2)*density*(L_ms+(FW_max+FW_min)/2)               
         lss_mass_new *= 1.35 # add flange and shrink disk mass
         length=L_ms_new + (FW_max+FW_min)/2 + flange_length
         outputs['length'] = length
@@ -476,7 +478,7 @@ class LowSpeedShaft_drive3pt(ExplicitComponent):
         #print ("Upwind MB OD, m: {0}").format(D_max_a)
         #print ("CB OD, m: {0}").format(D_min_a)
         #print ("D_min: {0}").format(D_min)
-        D_in=D_in
+        #D_in=D_in
         mass=lss_mass_new
         outputs['diameter1']= D_max_a
         outputs['diameter2']= D_min_a 
@@ -1573,7 +1575,7 @@ if __name__ == "__main__":
     view_model(prob, outfile='nacelle.html')
     prob.run_model()
     
-    print prob['nacelleSystem.nacelle_I'] 
+    print prob['nacelleSystem.nacelle_mass'] 
     print(time() - start, "seconds", clock())
     #print prob['nacelle_I'] 
                

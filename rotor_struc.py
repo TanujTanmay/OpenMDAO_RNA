@@ -16,6 +16,32 @@ UTS = 900.0e6 # ultimate tensile strength of steel [Pa]
 SN = 9.0 # slope (inverse negative) of SN Curve
 
 
+
+
+class BladeMass(ExplicitComponent):
+    def setup(self):
+        # variables
+        
+        self.add_input('BlSpn', units = 'm', desc = 'list of blade node radial location', shape=num_nodes)
+        self.add_input('BlMass', units = 'kg/m', desc = 'list of blade mass per unit length for each node', shape=num_nodes)
+        self.add_input('blade_number', desc = 'number of blades')
+        
+        # outputs
+        self.add_output('blade_mass', units = 'kg', desc='mass of the one blade')
+        self.add_output('rotor_mass', units = 'kg', desc='mass of the rotor (all blades)')
+        
+        
+    def compute(self, inputs, outputs):
+        
+        BlSpn =   inputs['BlSpn']
+        BlMass =   inputs['BlMass']  
+        blade_number =   inputs['blade_number']   
+        
+        outputs['blade_mass'] = np.trapz(BlMass, BlSpn)
+        outputs['rotor_mass'] = outputs['blade_mass'] * blade_number
+        
+        
+
 class RotorUltimateStress(ExplicitComponent):
     def setup(self):
         # variables
@@ -32,6 +58,7 @@ class RotorUltimateStress(ExplicitComponent):
      
         # outputs
         self.add_output('root_stress_max', units = 'Pa', desc='maximum stress at the blade root')
+        self.add_output('root_moment_max', units = 'N*m', desc='maximum bending moment at the root')
  
  
     def compute(self, inputs, outputs):
@@ -54,6 +81,7 @@ class RotorUltimateStress(ExplicitComponent):
         
         diameter = root_chord
         root_stress_max = 0    
+        root_moment_max = 0
 
         for t in range(len(B1N2Fx)): # loop through each time step
             d_moment = [] # list of flapwise moment due to Fx at every node at the blade root at the gien time step
@@ -65,14 +93,14 @@ class RotorUltimateStress(ExplicitComponent):
             
             # moment at blade root at time = t 
             root_moment = np.trapz(d_moment, BlSpn)
+            root_moment_max = root_moment if root_moment > root_moment_max else root_moment_max
             
             # stress at blade root at time = t 
             root_stress = root_moment * (diameter/2) / root_area_moment
-            
             root_stress_max = root_stress if root_stress > root_stress_max else root_stress_max
             
             
-        
+        outputs['root_moment_max'] = root_moment_max
         outputs['root_stress_max'] = root_stress_max
         
         
@@ -233,8 +261,36 @@ class RotorTipDeflection(ExplicitComponent):
 
 
 
+class RotorStructAdder(Group):
+    def setup(self):
+        
+        nodal_fx = []
+        for node_index in range(num_nodes): # loop through each node_index, call NODE_index
+            node_number = node_index + 1
+            nodal_fx.append('B1N' + str(node_number) + 'Fx')
+        
+        #nodal_fx + ['BlSpn', 'root_area_moment', 'root_chord', 'lifetime'], \
+        
+        self.add_subsystem('mass', BladeMass(), \
+                           promotes_inputs = ['BlSpn', 'BlMass', 'blade_number'], \
+                           promotes_outputs=['blade_mass', 'rotor_mass'])
+             
+        self.add_subsystem('ultimate', RotorUltimateStress(), \
+                           promotes_inputs = ['*'], \
+                           promotes_outputs=['root_stress_max', 'root_moment_max'])
+        
+        self.add_subsystem('fatigue', RotorFatigue(), \
+                           promotes_inputs = ['*'], \
+                           promotes_outputs=['miners_damage'])
+        
+        self.add_subsystem('deflection', RotorTipDeflection(), \
+                           promotes_inputs = ['*'], \
+                           promotes_outputs=['tip_deflection'])
+        
+        
+        
 
-class RotorStructure(Group):
+class RotorStructureSE(Group):
     def setup(self):
         
         i = IndepVarComp()
@@ -246,8 +302,48 @@ class RotorStructure(Group):
             i.add_output(var_name, units = 'N/m', desc = 'time series of force per unit length normal to the plane', shape=num_times)
             
         i.add_output('BlSpn', units = 'm', desc = 'list of blade node radial location', shape=num_nodes)  
+        i.add_output('BlMass', units = 'kg/m', desc = 'list of blade mass per unit length for each node', shape=num_nodes)
         i.add_output('BlInertia', units = 'm**4', desc = 'list of blade node area moment of inertia', shape=num_nodes) 
         i.add_output('root_chord', units = 'm', desc = 'chord length at blade root')
+        i.add_output('blade_number', desc = 'number of blades')
+        i.add_output('lifetime', units = 'year', desc = 'lifetime of the wind turbine')
+        
+        
+        # systems
+        self.add_subsystem('dof', i) 
+        self.add_subsystem('struct', RotorStructAdder()) 
+        
+        # connections
+        for node_index in range(num_nodes): # loop through each node_index, call NODE_index
+            node_number = node_index + 1
+            var_name = 'B1N' + str(node_number) + 'Fx'
+            self.connect('dof.' + var_name, 'struct.' + var_name)
+        
+        self.connect('dof.BlSpn', 'struct.BlSpn')
+        self.connect('dof.BlMass', 'struct.BlMass')
+        self.connect('dof.BlInertia', 'struct.BlInertia')
+        self.connect('dof.BlInertia', 'struct.root_area_moment', src_indices=[0])
+        self.connect('dof.root_chord', 'struct.root_chord')
+        self.connect('dof.blade_number', 'struct.blade_number')
+        self.connect('dof.lifetime', 'struct.lifetime')
+        
+
+class RotorStructureOld(Group):
+    def setup(self):
+        
+        i = IndepVarComp()
+        
+        # variables
+        for node_index in range(num_nodes): # loop through each node_index, call NODE_index
+            node_number = node_index + 1
+            var_name = 'B1N' + str(node_number) + 'Fx'
+            i.add_output(var_name, units = 'N/m', desc = 'time series of force per unit length normal to the plane', shape=num_times)
+            
+        i.add_output('BlSpn', units = 'm', desc = 'list of blade node radial location', shape=num_nodes)  
+        i.add_output('BlMass', units = 'kg/m', desc = 'list of blade mass per unit length for each node', shape=num_nodes)
+        i.add_output('BlInertia', units = 'm**4', desc = 'list of blade node area moment of inertia', shape=num_nodes) 
+        i.add_output('root_chord', units = 'm', desc = 'chord length at blade root')
+        i.add_output('blade_number', desc = 'number of blades')
         i.add_output('lifetime', units = 'year', desc = 'lifetime of the wind turbine')
         
         
@@ -270,8 +366,13 @@ class RotorStructure(Group):
         self.connect('dof.lifetime', 'fatigue.lifetime')
         
         
+        
 
-if __name__ == "__main__":
+                
+        
+
+
+def StructTest():
     B1N1Fx =   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     B1N2Fx =   [1481.973, 1491.605, 1492.307, 1483.669, 1473.638, 1471.138, 1478.922, 1489.682, 1493.135, 1486.955, 1476.132, 1470.594, 1476.231, 1487.067, 1493.15, 1489.598, 1478.828, 1471.098, 1473.722, 1483.812]
     B1N3Fx =   [3045.719, 3086.007, 3089.144, 3052.499, 3011.242, 3002.288, 3032.618, 3077.384, 3092.834, 3065.605, 3020.642, 3000.433, 3021.033, 3066.064, 3092.902, 3077.008, 3032.156, 3002.156, 3011.546, 3053.0]  
@@ -280,15 +381,18 @@ if __name__ == "__main__":
     B1N6Fx =   [6949.423, 7048.738, 7056.761, 6966.001, 6860.686, 6837.125, 6916.653, 7026.944, 7066.248, 6997.901, 6885.523, 6832.323, 6886.552, 6999.025, 7066.424, 7026.007, 6915.476, 6836.784, 6861.492, 6967.224] 
     
     BlSpn =   [0.0, 10.0, 20.0, 30.0, 40.0, 50.0] 
+    BlMass = [750.0, 350.0, 350.0, 350.0, 350.0, 350.0]
     BlInertia = [0.10, 0.01, 0.01, 0.01, 0.01, 0.01]
     root_chord = 3.4
+    blade_number = 3
     lifetime = 20
+    
     
     from openmdao.api import Problem, view_model
      
     start = time()
     # get and set values of the variables using Problem
-    prob = Problem(RotorStructure())
+    prob = Problem(RotorStructureSE())
     prob.setup()
     view_model(prob, outfile='rotor_struc.html')
     
@@ -299,18 +403,30 @@ if __name__ == "__main__":
     prob['dof.B1N5Fx'] = B1N5Fx
     prob['dof.B1N6Fx'] = B1N6Fx
     prob['dof.BlSpn'] = BlSpn
+    prob['dof.BlMass'] = BlMass
     prob['dof.BlInertia'] = BlInertia
     prob['dof.root_chord'] = root_chord
+    prob['dof.blade_number'] = blade_number
     prob['dof.lifetime'] = lifetime
+    
     
     prob.run_model()
      
     print "My Rotor"
-    print prob['ultimate.root_stress_max'] 
-    print prob['fatigue.miners_damage'] 
-    print prob['deflection.tip_deflection'] 
+    print prob['struct.root_stress_max'] # 1.11918757e+08
+    print prob['struct.root_moment_max'] # 6583456.3
+    print prob['struct.miners_damage'] # 1.85633554e-17
+    print prob['struct.tip_deflection'] # 1.58230231
+    print prob['struct.blade_mass'] # 19500.
+    print prob['struct.rotor_mass'] # 58500.
     
-    print 'Done in ' + str(time() - start) + 'seconds'
+    print 'Done in ' + str(time() - start) + 'seconds'        
+
+
+
+
+if __name__ == "__main__":
+    StructTest()
     
         
     
