@@ -143,7 +143,6 @@ class RotorAero(ExplicitComponent):
         
 
 
-
 class RotorCalculation(ExplicitComponent):
     def setup(self):
         # variables

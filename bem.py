@@ -1,9 +1,9 @@
-from fixed_parameters import rho_air
+from fixed_parameters import rho_air, airfoils_db
 from math import pi, atan, degrees, radians, acos, sqrt, cos, sin, exp
 import numpy as np
 import pandas as pd
 
-def bem(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
+def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
         r, dr, chord, twist, airfoil, \
         is_prandtl, is_glauert):
     
@@ -16,7 +16,7 @@ def bem(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
     
     mu = r/rotor_radius
     mu_root = hub_radius/rotor_radius
-    area = 2 * pi * r * dr
+    area = pi * ((r+dr)**2 - r**2)
     tsr_r = tsr * mu
     
     # initial estimates of induction factors
@@ -33,6 +33,7 @@ def bem(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
         if np.isnan(cl) or cl < 1.0e-6 :
             cl = 1.0e-6
             cd = 0
+        
             
         w = wind_speed * sqrt( (1-aA)**2 + (tsr_r*(1+aT))**2 ) 
         lift = 0.5 * chord * rho_air * (w**2) * cl
@@ -46,6 +47,7 @@ def bem(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
         ct = (fx * n_blades * dr)/(0.5 * rho_air * (wind_speed**2) * area)
         cq = (fy * n_blades * dr * mu)/(0.5 * rho_air * (wind_speed**2) * area)
         cp = cq * tsr
+
         
         # Prandtl correction for tip and root losses        
         if(is_prandtl):
@@ -72,25 +74,83 @@ def bem(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
             ct = CT1 - 4*(sqrt(CT1) - 1)*(1-aA_new)
         
         aA = itr_relax*aA + (1-itr_relax)*aA_new
+
         
         aT = (fy * n_blades)/(2 * 2*pi*r * rho_air * (wind_speed**2) * (1-aA) * tsr_r)
         aT = aT/f
+
         
         # Bound the value of tangential induction
-        if (aT > aA*(1-aA)/(tsr_r**2)):
+        if (abs(aT) > aA*(1-aA)/(tsr_r**2)):
             aT = aA*(1-aA)/(tsr_r**2)    
         
         # Check convergence
         if(abs((aA_new - aA)) <= itr_tol):
             break      
         
-    result = [phi, alpha, aA, aT, f, cl, cd, lift, drag, fx, fy, cx, cy, ct, cq, cp]
-    print i, r, mu, dr, area, tsr_r, chord, twist, f_tip, f_root, f, rotor_root
-    print aA, aT
+    result = {  'r' : r, \
+                'mu' : mu, \
+                'area' : area, \
+                'phi' : phi, \
+                'alpha' : alpha, \
+                'aA' : aA, \
+                'aT' : aT, \
+                'f' : f, \
+                'cl' : cl, \
+                'cd' : cd, \
+                'lift' : lift, \
+                'drag' : drag, \
+                'fx' : fx, \
+                'fy' : fy, \
+                'cx' : cx, \
+                'cy' : cy, \
+                'ct' : ct, \
+                'cq' : cq, \
+                'cp' : cp}
+
+
+    #print i, r, mu, dr, area, tsr_r, chord, twist, f_tip, f_root, f, rotor_root
+    #print aA, aT
+    #res = pd.Series(result)
     return result    
+
+
+
+
+def bem_rotor(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
+        BlSpn, BlChord, BlTwist, BlAFID, \
+        is_prandtl, is_glauert):
+    
+    result = []
+    
+    for i in range(len(BlSpn)):
+        r = BlSpn[i]
+        dr = BlSpn[i] - BlSpn[i-1] if(i > 0) else BlSpn[0]
+        chord = BlChord[i]
+        twist = BlTwist[i]
+        airfoil_id = int(BlAFID[i])
+        airfoil_name = 'Airfoils//' + airfoils_db[airfoil_id]
+        airfoil = pd.read_csv(airfoil_name, skiprows=9)
+        result.append(bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
+                                   r, dr, chord, twist, airfoil, \
+                                   is_prandtl, is_glauert))
+
+        
+        
+    return pd.DataFrame(result)
+    
+    
+    
          
     
 if __name__ == "__main__":
-    airfoil = pd.read_csv("Airfoils/ah.csv", skiprows=9)
-    #print airfoil.keys
-    print bem(10.0, 50.0, 0.2, 3, 0.0, 8.5, airfoil, 20.0, 1.0, 3.5, 2.0, 1, 1)
+    BlSpn = [10.0, 20.0, 30.0, 40.0, 50.0]
+    BlChord = [3.4, 1.9, 1.3, 1.0, 0.8]
+    BlTwist = [5.9, -2.3, -5.5, -7.0, -7.9]
+    BlAFID = [2, 2, 2, 2, 2]
+    result = bem_rotor(10.0, 3, 50.0, 10.0, 10.34, 0, BlSpn, BlChord, BlTwist, BlAFID, is_prandtl=1, is_glauert=1)
+    
+    
+    print result
+    print result['r'].tolist().shape()
+    
