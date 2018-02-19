@@ -2,6 +2,7 @@ absolute_url = 'H:\\GitHub\\OpenMDAO_RNA\\'
 
 num_airfoils = 2
 num_nodes = 5
+degree_blade_param = 3
 num_bins = 2
 
 rho_air = 1.225

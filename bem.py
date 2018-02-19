@@ -16,8 +16,9 @@ def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
     
     mu = r/rotor_radius
     mu_root = hub_radius/rotor_radius
-    area = pi * ((r+dr)**2 - r**2)
+    area = pi * ((r+dr/2.0)**2 - (r-dr/2.0)**2)
     tsr_r = tsr * mu
+    omega = tsr * wind_speed / rotor_radius
     
     # initial estimates of induction factors
     aA = 0.3
@@ -44,9 +45,14 @@ def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
         cx = fx/(0.5 * rho_air * (wind_speed**2) * rotor_radius)
         cy = fy/(0.5 * rho_air * (wind_speed**2) * rotor_radius)
         
-        ct = (fx * n_blades * dr)/(0.5 * rho_air * (wind_speed**2) * area)
-        cq = (fy * n_blades * dr * mu)/(0.5 * rho_air * (wind_speed**2) * area)
-        cp = cq * tsr
+        thrust = fx * n_blades * dr
+        ct = thrust/(0.5 * rho_air * (wind_speed**2) * area)
+        
+        torque = fy * n_blades * dr * r
+        cq = torque/(0.5 * rho_air * (wind_speed**2) * area * rotor_radius)
+        
+        power = torque * omega
+        cp = power/(0.5 * rho_air * (wind_speed**3) * area) 
 
         
         # Prandtl correction for tip and root losses        
@@ -89,8 +95,11 @@ def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
             break      
         
     result = {  'r' : r, \
+                'dr': dr, \
                 'mu' : mu, \
                 'area' : area, \
+                'chord': chord, \
+                'twist': twist, \
                 'phi' : phi, \
                 'alpha' : alpha, \
                 'aA' : aA, \
@@ -100,6 +109,9 @@ def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
                 'cd' : cd, \
                 'lift' : lift, \
                 'drag' : drag, \
+                'thrust' : thrust, \
+                'torque' : torque, \
+                'power': power, \
                 'fx' : fx, \
                 'fy' : fy, \
                 'cx' : cx, \
@@ -118,14 +130,14 @@ def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
 
 
 def bem_rotor(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
-        BlSpn, BlChord, BlTwist, BlAFID, \
+        BlSpn, Bldr, BlChord, BlTwist, BlAFID, \
         is_prandtl, is_glauert):
     
     result = []
     
     for i in range(len(BlSpn)):
         r = BlSpn[i]
-        dr = BlSpn[i] - BlSpn[i-1] if(i > 0) else BlSpn[0]
+        dr = Bldr[i] # - BlSpn[i-1] if(i > 0) else BlSpn[i] - hub_radius
         chord = BlChord[i]
         twist = BlTwist[i]
         airfoil_id = int(BlAFID[i])
@@ -144,13 +156,17 @@ def bem_rotor(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
          
     
 if __name__ == "__main__":
-    BlSpn = [10.0, 20.0, 30.0, 40.0, 50.0]
-    BlChord = [3.4, 1.9, 1.3, 1.0, 0.8]
-    BlTwist = [5.9, -2.3, -5.5, -7.0, -7.9]
+    BlSpn = [11.0, 16.0, 25.0, 35.0, 45.0]
+    Bldr = [2.0, 8.0, 10.0, 10.0, 10.0]
+    BlChord = [3.5, 2.8, 1.7, 1.3, 1.0]
+    BlTwist = [10.5, 5.8, 0.1, -2.2, -3.5]
     BlAFID = [2, 2, 2, 2, 2]
-    result = bem_rotor(10.0, 3, 50.0, 10.0, 10.34, 0, BlSpn, BlChord, BlTwist, BlAFID, is_prandtl=1, is_glauert=1)
+    result = bem_rotor(9.75, 3, 50.0, 10.0, 8.5, 0, BlSpn, Bldr, BlChord, BlTwist, BlAFID, is_prandtl=1, is_glauert=1)
     
     
     print result
-    print result['r'].tolist().shape()
+    print np.sum(result['power'])
+    print np.sum(result['area'])
+    print pi*50.0**2
+    print np.sum(result['power'])/(0.5 * rho_air * (9.75**3) * pi * 50.0 * 50.0)
     
