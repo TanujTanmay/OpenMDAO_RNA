@@ -152,7 +152,7 @@ def stageRatioCalc(overallRatio,Np,ratio_type,config):
             def constr2(x,overallRatio):
                 return overallRatio-x[0]*x[1]*x[2]
 
-            x=opt.fmin_cobyla(volume, x0,[constr1,constr2],consargs=[overallRatio],rhoend=1e-7, iprint = 0)
+            x=opt.fmin_cobyla(volume, x0,[constr1,constr2],consargs=[overallRatio],rhoend=1e-7, disp = 0)
     
         elif config == 'eep_3':
             #fixes last stage ratio at 3

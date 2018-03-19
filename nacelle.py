@@ -552,7 +552,7 @@ class MainBearing_drive(ExplicitComponent):
  
     def compute(self, inputs, outputs):
         
-        bearing_type = 'SRB' #inputs['bearing_type']
+        bearing_type = 'SRB' #'CARB' #  'SRB' #inputs['bearing_type']
         bearing_mass = inputs['bearing_mass']
         lss_diameter = inputs['lss_diameter']
         lss_design_torque = inputs['lss_design_torque']
@@ -676,7 +676,7 @@ class Gearbox_drive(ExplicitComponent):
         #ratio_type = inputs['ratio_type']
         #shaft_type = inputs['shaft_type']
         
-        gear_configuration='epp'
+        gear_configuration='eep'
         ratio_type='optimal' # 'empirical'
         shaft_type='normal'
 
@@ -1567,12 +1567,12 @@ if __name__ == "__main__":
     prob['dof.flange_length'] = 0.5
     prob['dof.overhang'] = 5.
     prob['dof.L_rb'] = 1.912
-    prob['dof.gearbox_cm_x'] = 0.0
+    prob['dof.gearbox_cm_x'] = 0.1
     prob['dof.tower_top_diameter'] = 3.78
-    prob['dof.hss_length'] = 0.
+    prob['dof.hss_length'] = 1.5
     
     
-    view_model(prob, outfile='nacelle.html')
+    #view_model(prob, outfile='nacelle.html')
     prob.run_model()
     
     print prob['nacelleSystem.nacelle_mass'] 

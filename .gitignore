@@ -2,3 +2,13 @@
 *.pyc
 
 Plots/Thumbs\.db
+
+AeroDyn/
+
+*.exe
+
+Airfoils/
+
+N2/
+
+*.html

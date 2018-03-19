@@ -14,9 +14,10 @@ class HubAdder(Group):
                            promotes_outputs=[('diameter', 'hub_diameter'), ('thickness', 'hub_thickness'), ('mass', 'hub_mass')])
         
         self.add_subsystem('pitch', PitchSystem_drive(), \
-                           promotes_inputs=['blade_mass', 'rotor_bending_moment', 'blade_number'])
+                           promotes_inputs=['blade_mass', 'rotor_bending_moment', 'blade_number'], \
+                           promotes_outputs=[('mass', 'pitch_system_mass')])
         
-        self.add_subsystem('spinner', Spinner_drive(), promotes_inputs=['rotor_diameter'])
+        self.add_subsystem('spinner', Spinner_drive(), promotes_inputs=['rotor_diameter'],  promotes_outputs=[('mass', 'spinner_mass')])
         
         self.add_subsystem('adder', Hub_System_Adder_drive(), \
                            promotes_inputs=['rotor_diameter', 'L_rb', 'shaft_angle', 'MB1_location'], \
@@ -26,8 +27,8 @@ class HubAdder(Group):
         self.connect('hub_mass', 'adder.hub_mass')
         self.connect('hub_thickness', 'adder.hub_thickness')
         self.connect('hub_diameter', 'adder.hub_diameter')
-        self.connect('pitch.mass', 'adder.pitch_system_mass')
-        self.connect('spinner.mass', 'adder.spinner_mass')
+        self.connect('pitch_system_mass', 'adder.pitch_system_mass')
+        self.connect('spinner_mass', 'adder.spinner_mass')
 
 
 

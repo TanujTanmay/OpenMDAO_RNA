@@ -110,8 +110,8 @@ class Hub_drive(ExplicitComponent):
     '''
     def setup(self):
         # variables
-        self.add_input('blade_root_diameter', units='m', desc='blade root diameter')
-        self.add_input('machine_rating', units = 'MW', desc = 'machine rating of turbine')
+        self.add_input('blade_root_diameter', units='m', desc='blade root diameter', val=3.4)
+        self.add_input('machine_rating', units = 'kW', desc = 'machine rating of turbine')
         
         # parameters
         self.add_input('blade_number', desc='number of turbine blades', val=3)
@@ -143,7 +143,11 @@ class Hub_drive(ExplicitComponent):
         #assume nacelle flange opening is similar to blade root opening
         approxCylNetVol = approxCylVol - (1.0 + blade_number)*bladeRootVol
         castDensity = 7200.0 # kg/m^3
-        outputs['mass']=approxCylNetVol*castDensity
+        mass = approxCylNetVol*castDensity
+        
+        # teetering hub when even number of blades: includes teeter shaft and damper
+        mass = mass if blade_number % 2 else 2 * mass
+        outputs['mass']=mass
 
         # calculate mass properties
         outputs['diameter']=2*rCyl
@@ -232,7 +236,7 @@ class HubSE(Group):
         i.add_output('rotor_diameter', units='m', desc='rotor diameter')
         i.add_output('blade_number', desc='number of turbine blades')
         i.add_output('blade_root_diameter', units='m', desc='blade root diameter')
-        i.add_output('machine_rating', units = 'MW', desc = 'machine rating of turbine')
+        i.add_output('machine_rating', units = 'kW', desc = 'machine rating of turbine')
         i.add_output('blade_mass', units='kg', desc='mass of one blade')
         i.add_output('rotor_bending_moment', units='N*m', desc='flapwise bending moment at blade root')
         i.add_output('L_rb', units='m', desc='distance between hub center and upwind main bearing')
@@ -287,11 +291,11 @@ if __name__ == "__main__":
     prob['dof.blade_number'] = 3
     prob['dof.blade_root_diameter'] = 3.542
     prob['dof.machine_rating'] = 5000.0
-    prob['dof.blade_mass'] = 17740.0
+    prob['dof.blade_mass'] = 14583.0
     prob['dof.rotor_bending_moment'] = (3.06 * pi / 8) * AirDensity * (RatedWindSpeed ** 2) * (Solidity * (prob['dof.rotor_diameter'] ** 3)) / prob['dof.blade_number']
 
     prob['dof.L_rb'] = 1.91 #inputs['L_rb']
-    prob['dof.shaft_angle']     = 5.0 #inputs['shaft_angle']
+    prob['dof.shaft_angle']     = -6.0 #inputs['shaft_angle']
     prob['dof.MB1_location']     = [-1.03966219,  0.  ,       -0.20292427] #inputs['MB1_location']
     
     

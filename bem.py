@@ -1,7 +1,8 @@
-from fixed_parameters import rho_air, airfoils_db
 from math import pi, atan, degrees, radians, acos, sqrt, cos, sin, exp
 import numpy as np
 import pandas as pd
+
+from fixed_parameters import num_nodes, rho_air, airfoil_folder, airfoils_db, af_skip_rows
 
 def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
         r, dr, chord, twist, airfoil, \
@@ -37,21 +38,21 @@ def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
         
             
         w = wind_speed * sqrt( (1-aA)**2 + (tsr_r*(1+aT))**2 ) 
-        lift = 0.5 * chord * rho_air * (w**2) * cl
-        drag = 0.5 * chord * rho_air * (w**2) * cd
+        lift = 0.5 * chord * rho_air * (w**2) * cl  # N/m
+        drag = 0.5 * chord * rho_air * (w**2) * cd  # N/m
         
-        fx = (lift*cos(radians(phi))) + (drag*sin(radians(phi)))
-        fy = (lift*sin(radians(phi))) - (drag*cos(radians(phi)))
-        cx = fx/(0.5 * rho_air * (wind_speed**2) * rotor_radius)
+        fx = (lift*cos(radians(phi))) + (drag*sin(radians(phi))) # N/m
+        fy = (lift*sin(radians(phi))) - (drag*cos(radians(phi))) # N/m
+        cx = fx/(0.5 * rho_air * (wind_speed**2) * rotor_radius) 
         cy = fy/(0.5 * rho_air * (wind_speed**2) * rotor_radius)
         
-        thrust = fx * n_blades * dr
+        thrust = fx * n_blades * dr # N
         ct = thrust/(0.5 * rho_air * (wind_speed**2) * area)
         
-        torque = fy * n_blades * dr * r
+        torque = fy * n_blades * r * dr # Nm
         cq = torque/(0.5 * rho_air * (wind_speed**2) * area * rotor_radius)
         
-        power = torque * omega
+        power = torque * omega # W
         cp = power/(0.5 * rho_air * (wind_speed**3) * area) 
 
         
@@ -123,26 +124,25 @@ def bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
 
     #print i, r, mu, dr, area, tsr_r, chord, twist, f_tip, f_root, f, rotor_root
     #print aA, aT
-    #res = pd.Series(result)
     return result    
 
 
 
 
 def bem_rotor(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
-        BlSpn, Bldr, BlChord, BlTwist, BlAFID, \
+        span_r, span_dr, span_chord, span_twist, span_airfoil, \
         is_prandtl, is_glauert):
     
     result = []
     
-    for i in range(len(BlSpn)):
-        r = BlSpn[i]
-        dr = Bldr[i] # - BlSpn[i-1] if(i > 0) else BlSpn[i] - hub_radius
-        chord = BlChord[i]
-        twist = BlTwist[i]
-        airfoil_id = int(BlAFID[i])
-        airfoil_name = 'Airfoils//' + airfoils_db[airfoil_id]
-        airfoil = pd.read_csv(airfoil_name, skiprows=9)
+    for i in range(num_nodes):
+        r = span_r[i]
+        dr = span_dr[i]
+        chord = span_chord[i]
+        twist = span_twist[i]
+        airfoil_id = int(span_airfoil[i])
+        airfoil_name = airfoil_folder + airfoils_db[airfoil_id]
+        airfoil = pd.read_csv(airfoil_name, skiprows=af_skip_rows)
         result.append(bem_annulus(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
                                    r, dr, chord, twist, airfoil, \
                                    is_prandtl, is_glauert))
@@ -156,12 +156,12 @@ def bem_rotor(wind_speed, n_blades, rotor_radius, hub_radius, tsr, pitch, \
          
     
 if __name__ == "__main__":
-    BlSpn = [11.0, 16.0, 25.0, 35.0, 45.0]
-    Bldr = [2.0, 8.0, 10.0, 10.0, 10.0]
-    BlChord = [3.5, 2.8, 1.7, 1.3, 1.0]
-    BlTwist = [10.5, 5.8, 0.1, -2.2, -3.5]
-    BlAFID = [2, 2, 2, 2, 2]
-    result = bem_rotor(9.75, 3, 50.0, 10.0, 8.5, 0, BlSpn, Bldr, BlChord, BlTwist, BlAFID, is_prandtl=1, is_glauert=1)
+    span_r = [11.0, 16.0, 25.0, 35.0, 45.0]
+    span_dr = [2.0, 8.0, 10.0, 10.0, 10.0]
+    span_chord = [3.5, 2.8, 1.7, 1.3, 1.0]
+    span_twist = [10.5, 5.8, 0.1, -2.2, -3.5]
+    span_airfoil = [2, 2, 2, 2, 2]
+    result = bem_rotor(9.75, 3, 50.0, 10.0, 8.5, 0, span_r, span_dr, span_chord, span_twist, span_airfoil, is_prandtl=1, is_glauert=1)
     
     
     print result
