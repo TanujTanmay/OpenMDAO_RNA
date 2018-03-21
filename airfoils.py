@@ -1,30 +1,56 @@
 import numpy as np
 import pandas as pd
+import re
 
 from fixed_parameters import airfoils_db, airfoil_folder, af_skip_rows
 
 
-def ReadAirfoil(airfoil_id):
+ReferenceTurbine = pd.read_csv(airfoil_folder + 'reference_turbine.csv')
+
+
+def AirfoilName(airfoil_id):
+    '''
+        returns the name of the airfoil from its ID
+    '''
+    
     airfoil_name = airfoil_folder + airfoils_db[airfoil_id]
-    airfoil = pd.read_csv(airfoil_name, skiprows=af_skip_rows)
+    
+    return airfoil_name
+
+def ReadAirfoil(airfoil_id):
+    '''
+        returns the airfoil polar coordinates from its ID
+    '''
+    
+    airfoil_name = AirfoilName(airfoil_id)
+    
+    with open(airfoil_name) as f:
+        # skip rows until you reach the main table
+        for line in f:            
+            search_data = re.search('(\d*)\s+(NumAlf)', line)
+            if search_data:
+                num_data = int(search_data.group(1))
+                break
+            
+        airfoil = pd.read_table(f, sep='\s+', index_col=False,  header=None, \
+                              names=['Alpha', 'Cl', 'Cd', 'Cm'], usecols=[0, 1, 2, 3], \
+                              skiprows=2, nrows=num_data, engine='python')
+            
+    airfoil = airfoil.astype(float) # convert all data to float
     
     return airfoil
 
 
 
 
-def ReferenceTurbine():
-    file_name = airfoil_folder + 'reference_turbine.csv'
-    ref_turbine = pd.read_csv(file_name)
-    
-    return ref_turbine
+
 
 
 
 
 def AirfoilProperties(airfoil_id):
-    airfoil_name = airfoils_db[airfoil_id]
-    airfoil = pd.read_csv(airfoil_folder + airfoil_name, skiprows=af_skip_rows)
+    airfoil_name = AirfoilName(airfoil_id)
+    airfoil = ReadAirfoil(airfoil_id)
     airfoil['Cl_Cd'] = airfoil['Cl']/airfoil['Cd']
     
     cl_opt = airfoil.loc[airfoil['Cl_Cd'].idxmax(), 'Cl']
@@ -67,7 +93,8 @@ def BladeScaling(ref_turbine, mu, chord, thickness_factor, rotor_radius):
     
     return [thickness, mass, flap_inertia, edge_inertia, flap_stiff, edge_stiff]
 
-        
+
+       
 
 
 
@@ -90,6 +117,6 @@ def ReadAirfoilCoordinates(file_name):
 
         
 if __name__ == "__main__":
-    print AirfoilProperties(0)
+    print AirfoilProperties(6)
     
             
