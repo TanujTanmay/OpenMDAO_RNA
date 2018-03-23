@@ -5,10 +5,12 @@ from time import time
 
 from openmdao.api import ExplicitComponent, Group, IndepVarComp, Problem, view_model
 from fixed_parameters import beautify, num_nodes, num_airfoils
-from airfoils import AirfoilProperties, ReferenceTurbine, BladeScaling
+from airfoils import AirfoilProperties, ReferenceTurbine
 
 
-
+#############################################################################
+##############################  I/O SKELETON ################################
+#############################################################################
 class AerodynamicDesign(ExplicitComponent):
     def setup(self):        
         # inputs
@@ -30,12 +32,33 @@ class AerodynamicDesign(ExplicitComponent):
         self.add_output('pitch', units='deg', desc='blade pitch angle')
 
 
+    def scale_chord_with_radius(self, mu, radius):
+        '''
+            This function scales the chord length of the blade with respect to NREL 5MW Offshore wind turbine
+            ASSUMING CONSTANT number of blades (3), airfoil distribution
+            but VARYING rotor radius
+        '''
+        ref_radius = ReferenceTurbine.r.iat[-1]
+        ref_chord = np.interp(mu, ReferenceTurbine['mu'], ReferenceTurbine['chord'])
+        ref_twist = np.interp(mu, ReferenceTurbine['mu'], ReferenceTurbine['twist'])
+        
+        s = radius/ref_radius # scaling factor
+        
+        chord = ref_chord * (s**1)
+        twist = ref_twist * (s**0)
+        
+        return [chord, twist]   
 
 
 
 
-class AerodynamicDesignBetz(AerodynamicDesign):   
-         
+
+
+class AerodynamicDesignBetz(AerodynamicDesign):  
+    '''
+        computes the chord and twist distribution based on analytical relationship
+        that assumes a=1/3 and the angle of attack at each blade section is optimal
+    '''          
     def compute(self, inputs, outputs):
         # inputs
         tsr = inputs['design_tsr']
@@ -121,25 +144,10 @@ class AerodynamicDesignBetz(AerodynamicDesign):
 
 
 
-class AerodynamicDesignScaling(AerodynamicDesign):
-    def scale_chord_with_radius(self, mu, radius):
-        '''
-            This function scales the chord length of the blade with respect to NREL 5MW Offshore wind turbine
-            ASSUMING CONSTANT number of blades (3), airfoil distribution
-            but VARYING rotor radius
-        '''
-        ref_turbine = ReferenceTurbine()
-        ref_radius = ref_turbine.r.iat[-1]
-        ref_chord = np.interp(mu, ref_turbine['mu'], ref_turbine['chord'])
-        ref_twist = np.interp(mu, ref_turbine['mu'], ref_turbine['twist'])
-        
-        s = radius/ref_radius # scaling factor
-        
-        chord = ref_chord * (s**1)
-        twist = ref_twist * (s**0)
-        
-        return [chord, twist]
-    
+class AerodynamicDesignScaling(AerodynamicDesign):   
+    '''
+        computes the chord and twist distribution by scaling it from NREL 5MW Offshore Reference turbine
+    '''  
     def compute(self, inputs, outputs):
         # inputs
         rotor_diameter = inputs['rotor_diameter']
@@ -192,7 +200,9 @@ class AerodynamicDesignScaling(AerodynamicDesign):
 
 
 
-        
+#############################################################################
+##############################  UNIT TESTING ################################
+#############################################################################        
 class AerodynamicDesignTest(Group):
     def setup(self):
         
@@ -210,7 +220,7 @@ class AerodynamicDesignTest(Group):
 
         # sub-components        
         self.add_subsystem('dof', i, promotes=['*'])   
-        self.add_subsystem('design', AerodynamicDesignBetz(), promotes_inputs=['*'])
+        self.add_subsystem('design', AerodynamicDesignScaling(), promotes_inputs=['*'])
         
 
         
@@ -231,8 +241,8 @@ if __name__ == "__main__":
     prob['dof.rotor_diameter'] = 126.0
     prob['dof.hub_radius'] = 1.5
     prob['dof.root_chord'] = 3.4
-    prob['dof.span_airfoil_r'] = [4.0, 16.2, 25.0]
-    prob['dof.span_airfoil_id'] = [0, 1, 2]
+    prob['dof.span_airfoil_r'] =  [01.36, 06.83, 10.25, 14.35, 22.55, 26.65, 34.85, 43.05]
+    prob['dof.span_airfoil_id'] = [0,     1,     2,     3,     4,     5,     6,     7]
     prob['dof.adjust_pitch'] = 1    
      
     prob.run_model()

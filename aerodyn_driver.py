@@ -1,18 +1,33 @@
 import pandas as pd
 import numpy as np
+from time import time
 import matplotlib.pyplot as plt
 import re
 import random
-
-from fixed_parameters import k_air, rho_air, num_nodes, plot_graphs, \
-    airfoils_db, airfoil_folder, aerodyn_folder, plots_folder, aerodyn_exe, \
-    aerodyn_spanwise_params, aerodyn_rotor_params, aerodyn_timeseries_params
+import os
+import sys
 
 
+from airfoils import AirfoilName
+from fixed_parameters import k_air, rho_air, wind_shear, \
+    num_nodes, airfoils_db, airfoil_folder, plot_graphs, plots_folder, \
+    aerodyn_folder, aerodyn_exe, root_name, driver_ext, summary_ext, output_ext, \
+    aerodyn_spanwise_params, aerodyn_rotor_params, aerodyn_timeseries_params, \
+    itr_max, itr_tol, dT, Tmax
 
 
-# ------------------- COMMON ROUTINES ----------------------------
+
+#############################################################################
+##############################  COMMON ROUTINES #############################
+#############################################################################
 def buffer_header(header):
+    '''
+        buffers the header for a given section in AeroDyn input file
+        
+        EXAMPLE:
+        ----- Input Configuration ------------------------------------------------------
+    '''
+    
     buffer = '----- ' + header + ' '
     buffer = buffer + '-' * (80 - len(buffer)) + '\n'
     
@@ -20,6 +35,15 @@ def buffer_header(header):
     
 
 def buffer_records(records):
+    '''
+        buffers uni-line records for a given section in AeroDyn input file in the following format:
+        Value - VariableName - VariableDescription
+        
+        EXAMPLE:
+        3        NumBlades  - Number of blades (-)
+        1.5      HubRad     - Hub radius (m)
+        90.0     HubHt      - Hub height (m)
+    '''
     
     buffer = ''
     for record in records:
@@ -29,6 +53,14 @@ def buffer_records(records):
 
 
 def buffer_table(records):
+    '''
+        buffers multi-line records for a given section in AeroDyn input file:
+        
+        EXAMPLE:
+        WndSpeed    ShearExp    RotSpd    Pitch    Yaw    dT    Tmax    
+        (m/s)    (-)    (rpm)    (deg)    (deg)    (s)    (s)    
+        9.0    0.11    14.3    0.0    0.0    0.138    12.7935
+    '''
     
     buffer = ''
         
@@ -58,6 +90,15 @@ def buffer_table(records):
 
 
 def buffer_list(records, is_inline):
+    '''
+        buffers multi-line values of a record in AeroDyn input file:
+        
+        EXAMPLE:
+        "..\Airfoils\NACA64_A17_10Hz.dat"
+        "..\Airfoils\NACA64_A17_10Hz.dat"
+        "..\Airfoils\NACA64_A17_10Hz.dat"
+        "..\Airfoils\NACA64_A17_10Hz.dat"
+    '''
     
     if is_inline:
         buffer = str(records[2][0])
@@ -79,8 +120,9 @@ def buffer_list(records, is_inline):
 
 
 
-
-# ------------------- DRIVER FILE ----------------------------
+#############################################################################
+##############################  DRIVER FILE  ################################
+#############################################################################
 def gen_input_driver(driver_file, input_config, turbine_data, io_setting, cc_analysis, cases):
     
     # create the file to write
@@ -114,7 +156,7 @@ def gen_input_driver(driver_file, input_config, turbine_data, io_setting, cc_ana
 
    
 def set_input_driver(root_name, NumBlades, HubRad, HubHt, Overhang, ShftTilt, Precone, \
-                     WndSpeed, ShearExp, RotSpd, Pitch, Yaw, dT, Tmax):
+                     WndSpeed, ShearExp, RotSpd, Pitch, Yaw):
     
     driver_file = aerodyn_folder + root_name + '.dvr'
     primary_input = '"' + root_name + '_primary_input.dat"'
@@ -161,7 +203,9 @@ def set_input_driver(root_name, NumBlades, HubRad, HubHt, Overhang, ShftTilt, Pr
 
 
 
-# ------------------- PRIMARY INPUT FILE ----------------------------
+#############################################################################
+####################### PRIMARY INPUT FILE ##################################
+#############################################################################
 def gen_primary_input(input_file, general_options, env_conditions, bem_options, unsteady_options, \
                       airfoil_info, airfoil_files, rotor_prop, tower_prop, tower_nodes, output_prop, output_params):
     
@@ -222,9 +266,8 @@ def set_primary_input(root_name, BlAFID):
     input_file = aerodyn_folder + root_name + '_primary_input.dat'
     blade_file = '"' + root_name + '_blade.dat"'
     
-    
-    af_folder = '..\\' + airfoil_folder.replace('//', '\\')  # change folder separator to CMD style (slash -> backslash)
-    Airfoils = ['"' + af_folder + airfoils_db[x-1] + '"' for x in BlAFID] # BlAFID is in AeroDyn format which starts at 1
+    Airfoils = ['"..//' + airfoil_folder + x + '"' for x in airfoils_db]
+    Airfoils = [x.replace('//', '\\') for x in Airfoils] # change folder separator to CMD style (slash -> backslash)
     
     
     # select output nodes
@@ -233,15 +276,20 @@ def set_primary_input(root_name, BlAFID):
     if num_nodes <= 9:
         BlOutNd = ','.join([str(x) for x in range(1, num_nodes + 1)])
     else:
+        # select first 4, last 4 and random 1 in middle
+        BlOutNd = ','.join([str(x) for x in range(1, 5)]) + ',' + \
+                  ','.join([str(x) for x in sorted(random.sample(range(4, num_nodes - 3),1))]) + ',' + \
+                  ','.join([str(x) for x in range(num_nodes - 3, num_nodes + 1)])
+                  
         # select first 3, last 3 and random 3 in middle
-#         BlOutNd = ','.join([str(x) for x in range(1, 4)]) + ',' + \
-#                   ','.join([str(x) for x in sorted(random.sample(range(4, num_nodes - 2),3))]) + ',' + \
-#                   ','.join([str(x) for x in range(num_nodes - 2, num_nodes + 1)])
+        BlOutNd = ','.join([str(x) for x in range(1, 4)]) + ',' + \
+                  ','.join([str(x) for x in sorted(random.sample(range(4, num_nodes - 2),3))]) + ',' + \
+                  ','.join([str(x) for x in range(num_nodes - 2, num_nodes + 1)])
                   
         # select first, last and random 7 in middle
-        BlOutNd = ','.join([str(x) for x in range(1, 2)]) + ',' + \
-                  ','.join([str(x) for x in sorted(random.sample(range(2, num_nodes), 7))]) + ',' + \
-                  ','.join([str(x) for x in range(num_nodes, num_nodes + 1)])          
+#         BlOutNd = ','.join([str(x) for x in range(1, 2)]) + ',' + \
+#                   ','.join([str(x) for x in sorted(random.sample(range(2, num_nodes), 7))]) + ',' + \
+#                   ','.join([str(x) for x in range(num_nodes, num_nodes + 1)])          
     
     
     
@@ -281,8 +329,8 @@ def set_primary_input(root_name, BlAFID):
                     ('TanInd',    'Include tangential induction in BEMT calculations? (flag) [used only when WakeMod=1]',                               True), \
                     ('AIDrag',    'Include the drag term in the axial-induction calculation? (flag) [used only when WakeMod=1]',                        True), \
                     ('TIDrag',    'Include the drag term in the tangential-induction calculation? (flag) [used only when WakeMod=1 and TanInd=TRUE]',   True), \
-                    ('IndToler',  'Convergence tolerance for BEMT nonlinear solve residual equation {or ""default""} (-) [used only when WakeMod=1]',   0.00005), \
-                    ('MaxIter',   'Maximum number of iteration steps (-) [used only when WakeMod=1]',                                                   100)
+                    ('IndToler',  'Convergence tolerance for BEMT nonlinear solve residual equation {or ""default""} (-) [used only when WakeMod=1]',   itr_tol), \
+                    ('MaxIter',   'Maximum number of iteration steps (-) [used only when WakeMod=1]',                                                   itr_max)
                 )
     
     unsteady_options = (('UAMod',   'Unsteady Aero Model Switch (switch) {1=Baseline model (Original), 2=Gonzalezs variant (changes in Cn,Cc,Cm), 3=Minemma/Pierce variant (changes in Cc and Cm)} [used only when AFAeroMod=2]',    3), \
@@ -343,7 +391,9 @@ def set_primary_input(root_name, BlAFID):
     
     
     
-# ------------------- BLADE FILE ----------------------------    
+#############################################################################
+##############################  BLADE FILE ##################################
+#############################################################################   
 def gen_blade_file(blade_file, blade_properties, blade_span):
     
     # create the file to write
@@ -402,7 +452,9 @@ def set_blade_file(root_name, BlSpn, BlTwist, BlChord, BlAFID):
 
 
     
-# ------------------- AIRFOIL FILE ----------------------------         
+#############################################################################
+##############################  AIRFOIL FILE ################################
+#############################################################################       
 
 def read_airfoil(airfoil_file, file_type):
     
@@ -537,12 +589,15 @@ def set_airfoil_file(airfoil_file):
 
 
 
-# ------------------- OUTPUT FILE ----------------------------  
-
+#############################################################################
+##############################  OUTPUT FILE  ################################
+############################################################################# 
 def read_output(summary_file, output_file, BlSpn):
+    '''
+        parses the Aerodyn output file to get results of the simulation
+    '''
 
-    # get list of output nodes
-    #print 'Reading: ' + summary_file
+    # get list of output nodes from the summary file
     with open(summary_file) as f:
         # skip rows until you reach the main table
         for line in f:            
@@ -560,8 +615,13 @@ def read_output(summary_file, output_file, BlSpn):
     output_nodes = nodes['analysis_node'].tolist()
     
     
-    # read the AeroDyn output
-    #print 'Reading: ' + output_file
+    # get radial distance of output nodes
+    output_node_r = []
+    for i in output_nodes:
+        output_node_r.append(BlSpn[i-1])
+            
+    
+    # read the AeroDyn output file
     with open(output_file) as f:
         # skip rows until you reach the main table
         for line in f:            
@@ -575,14 +635,6 @@ def read_output(summary_file, output_file, BlSpn):
     output = output.drop([0]).reset_index(drop=True) # drop first row that has the units
     output = output.astype(float) # convert all data to float
     
-    
-
-    # get radial distance of output nodes
-    output_node_r = []
-    for i in output_nodes:
-        output_node_r.append(BlSpn[i-1])
-    
-
     
     # save rotor parameters at t=0
     rotor = {}
@@ -619,7 +671,7 @@ def read_output(summary_file, output_file, BlSpn):
             plt.xlabel('Span [m]')
             plt.ylabel(param)
             #plt.show()
-            plt.savefig(plots_folder + 'Spanwise_' + param + '.png')
+            plt.savefig(plots_folder + 'AeroDyn_' + param + '.png')
          
          
      
@@ -651,44 +703,77 @@ def read_output(summary_file, output_file, BlSpn):
     return result
 
 
-    
 
 
+#############################################################################
+##########################  EXECUTE AERODYN  ################################
+############################################################################# 
+def execute_aerodyn(NumBlades, HubRad, HubHt, Overhang, ShftTilt, Precone, \
+                    WndSpeed, ShearExp, RotSpd, Pitch, Yaw, \
+                    BlSpn, BlTwist, BlChord, BlAFID):
+
+    # derive names for AeroDyn input files
+    driver_file  = root_name + driver_ext
+    summary_file = aerodyn_folder + root_name + summary_ext
+    output_file  = aerodyn_folder + root_name + output_ext
     
+    
+    # generate AeroDyn input files
+    set_input_driver(root_name, NumBlades, HubRad, HubHt, Overhang, ShftTilt, Precone, \
+                     WndSpeed, ShearExp, RotSpd, Pitch, Yaw)          
+    set_primary_input(root_name, BlAFID)     
+    set_blade_file(root_name, BlSpn, BlTwist, BlChord, BlAFID)
+
+
+    # execute AeroDyn
+    command = './/' + aerodyn_folder + aerodyn_exe + ' ' + aerodyn_folder + driver_file
+    command = command.replace('//', '\\') # change folder separator to CMD style (slash -> backslash)
+    
+    aerodyn_status = os.system(command)
+    if aerodyn_status != 0:
+        sys.exit("FATAL ERROR while running Aerodyn")
+    
+    
+    # read AeroDyn output file
+    [rotor, spanwise, timeseries] = read_output(summary_file, output_file, BlSpn) 
+
+    return [rotor, spanwise, timeseries]
+
+
+
+
+#############################################################################
+##############################  UNIT TESTING ################################
+#############################################################################    
 if __name__ == "__main__":
-    
-    
-    import os
-    from time import time
-    
     start = time()
     
-     
+    NumBlades = 3 
+    HubRad = 1.5
+    HubHt = 90.0
+    Overhang = -5.0191
+    ShftTilt = -5.0
+    Precone = -2.5
+    WndSpeed = 7.0
+    ShearExp = wind_shear
+    RotSpd = 7.43
+    Pitch = 0
+    Yaw = 0
+                      
     BlSpn =   [0,    1.36665,    4.09995,    6.83325,    10.24995,    14.34995,    18.44995,    22.54995,    26.64995,    30.74995,    34.84995,    38.94995,    43.04995,    47.14995,    51.24995,    54.66665,    57.39995,    60.13325,    61.4999] 
     BlTwist = [13.308,    13.308,    13.308,    13.308,    13.308,    11.48,    10.162,    9.011,    7.795,    6.544,    5.361,    4.188,    3.125,    2.319,    1.526,    0.863,    0.37,    0.106,    0.106]
     BlChord = [3.542,    3.542,    3.854,    4.167,    4.557,    4.652,    4.458,    4.249,    4.007,    3.748,    3.502,    3.256,    3.01,    2.764,    2.518,    2.313,    2.086,    1.419,    1.419]
     BlAFID =  [1, 1, 1, 2, 3, 4, 4, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8]
     
-    root_name = 'reference'
-    set_input_driver(root_name, 3, 1.5, 90, -5.0191, -5, -2.5, \
-                         7, 0, 7.43, 0, 0, 0.138, 12.7935)
-    set_primary_input(root_name, BlAFID)
-    set_blade_file(root_name, BlSpn, BlTwist, BlChord, BlAFID)
-  
-    command = './/' + aerodyn_folder + aerodyn_exe + ' ' + aerodyn_folder + root_name + '.dvr'
-    command = command.replace('//', '\\') # change folder separator to CMD style (slash -> backslash)
-    print 'Executing: ' + command     
-    os.system(command)
-    
-    summary_file = aerodyn_folder + 'test.AD.sum'
-    output_file = aerodyn_folder + 'test.1.out'
-    [rotor, spanwise, timeseries] = read_output(summary_file, output_file, BlSpn)
+    [rotor, spanwise, timeseries] = execute_aerodyn(NumBlades, HubRad, HubHt, Overhang, ShftTilt, Precone, \
+                    WndSpeed, ShearExp, RotSpd, Pitch, Yaw, \
+                    BlSpn, BlTwist, BlChord, BlAFID)
 
     print rotor['RtTSR'], rotor['RtAeroCp'], rotor['RtAeroCt']
     print [rotor['RtAeroMxh'], rotor['RtAeroMyh'], rotor['RtAeroMzh']]
-    fxy = [[x,y] for (x,y) in zip(spanwise['Fx'], spanwise['Fy'])]
-    print fxy
-    print np.array(fxy).shape
+    print spanwise['Fx']
+    print spanwise['Fy']
+    #fxy = [[x,y] for (x,y) in zip(spanwise['Fx'], spanwise['Fy'])]
     print 'Done in ' + str(time() - start) + ' seconds'
     
     
