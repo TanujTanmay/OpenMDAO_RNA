@@ -17,7 +17,7 @@ class RotorAerodynamics(ExplicitComponent):
     def setup(self):
         # inputs
         self.add_input('design_tsr', desc='design tip speed ratio')
-        self.add_input('wind_speed', units = 'm/s', desc = 'wind speed at hub height')
+        self.add_input('wind_speed', units = 'm/s', desc = 'wind speed at hub height', val=8.0)
         self.add_input('blade_number', desc='number of blades')
         self.add_input('blade_mass', units = 'kg', desc='mass of the one blade')
         self.add_input('rotor_diameter', units='m', desc='rotor diameter')

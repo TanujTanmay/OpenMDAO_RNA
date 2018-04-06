@@ -32,25 +32,6 @@ class AerodynamicDesign(ExplicitComponent):
         self.add_output('pitch', units='deg', desc='blade pitch angle')
 
 
-    def scale_chord_with_radius(self, mu, radius):
-        '''
-            This function scales the chord length of the blade with respect to NREL 5MW Offshore wind turbine
-            ASSUMING CONSTANT number of blades (3), airfoil distribution
-            but VARYING rotor radius
-        '''
-        ref_radius = ReferenceTurbine.r.iat[-1]
-        ref_chord = np.interp(mu, ReferenceTurbine['mu'], ReferenceTurbine['chord'])
-        ref_twist = np.interp(mu, ReferenceTurbine['mu'], ReferenceTurbine['twist'])
-        
-        s = radius/ref_radius # scaling factor
-        
-        chord = ref_chord * (s**1)
-        twist = ref_twist * (s**0)
-        
-        return [chord, twist]   
-
-
-
 
 
 
@@ -148,6 +129,25 @@ class AerodynamicDesignScaling(AerodynamicDesign):
     '''
         computes the chord and twist distribution by scaling it from NREL 5MW Offshore Reference turbine
     '''  
+    def scale_chord_with_radius(self, mu, radius):
+        '''
+            This function scales the chord length of the blade with respect to NREL 5MW Offshore wind turbine
+            ASSUMING CONSTANT number of blades (3), airfoil distribution
+            but VARYING rotor radius
+        '''
+        ref_radius = ReferenceTurbine.r.iat[-1]
+        ref_chord = np.interp(mu, ReferenceTurbine['mu'], ReferenceTurbine['chord'])
+        ref_twist = np.interp(mu, ReferenceTurbine['mu'], ReferenceTurbine['twist'])
+        
+        s = radius/ref_radius # scaling factor
+        
+        chord = ref_chord * (s**1)
+        twist = ref_twist * (s**0)
+        
+        return [chord, twist]
+    
+    
+    
     def compute(self, inputs, outputs):
         # inputs
         rotor_diameter = inputs['rotor_diameter']

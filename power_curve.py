@@ -27,6 +27,8 @@ class PowerCurve(ExplicitComponent):
         self.add_output('wind_bin', units = 'm/s', desc='list of wind speeds', shape=num_bins)
         self.add_output('power_bin', units='kW', desc='list of power output', shape=num_bins)
         self.add_output('thrust_bin', units = 'N', desc='list of rotor thrust', shape=num_bins)
+        self.add_output('cp_bin', desc='list of power coefficients', shape=num_bins)
+        self.add_output('ct_bin', desc='list of thrust coefficients', shape=num_bins)
         
         
     def compute(self, inputs, outputs):
@@ -40,16 +42,17 @@ class PowerCurve(ExplicitComponent):
         
         rated_wind_speed = (machine_rating * 1000.0 / (rotor_cp * 0.5 * rho_air * swept_area))**(1.0/3.0)
         wind_bin = range(1,num_bins+1) 
-        power_bin = []
-        thrust_bin = []        
+        power_bin, thrust_bin, cp_bin, ct_bin = [], [], [], []
+       
         
         for v in wind_bin:
             if v < cut_in_speed or v > cut_out_speed:
-                power = 0
-                thrust = 0
+                power, thrust, cp, ct = 0., 0., 0., 0.
             elif v < rated_wind_speed:
                 power  = rotor_cp * 0.5 * rho_air * swept_area * (v**3) / 1000.0  
-                thrust = rotor_ct * 0.5 * rho_air * swept_area * (v**2)              
+                thrust = rotor_ct * 0.5 * rho_air * swept_area * (v**2)   
+                cp = rotor_cp
+                ct = rotor_ct           
             else:
                 power = machine_rating    
                 cp = (machine_rating * 1000.0)/(0.5 * rho_air * swept_area * (v**3))
@@ -62,56 +65,32 @@ class PowerCurve(ExplicitComponent):
             
             power_bin.append(power)        
             thrust_bin.append(thrust)
+            cp_bin.append(cp)
+            ct_bin.append(ct)
         
         if plot_graphs:
-            # plot power curve
-            plt.close('all')
-            plt.plot(wind_bin, power_bin)
-            plt.xlabel('Wind Speed [m/s]')
-            plt.ylabel('Power [kW]')
-            #plt.show()
-            plt.savefig(plots_folder + 'power_curve.png')
-            
-            # plot thrust curve
-            plt.close('all')
-            plt.plot(wind_bin, thrust_bin)
-            plt.xlabel('Wind Speed [m/s]')
-            plt.ylabel('Thrust [N]')
-            #plt.show()
-            plt.savefig(plots_folder + 'thrust_curve.png')
+            plots = {'Power (kW)' : power_bin, \
+                     'Thrust (N)' : thrust_bin, \
+                     'C_p (-)' : cp_bin, \
+                     'C_t (-)' : ct_bin}
+            for key, value in plots.items():
+                plt.close('all')
+                plt.plot(wind_bin, value)
+                plt.xlabel('Wind Speed (m/s)')
+                plt.ylabel(key)
+                #plt.show()
+                plt.savefig(plots_folder + key + '.png')
+
         
         outputs['rated_wind_speed'] = rated_wind_speed        
         outputs['wind_bin'] = wind_bin
         outputs['power_bin'] = power_bin
         outputs['thrust_bin'] = thrust_bin    
-
+        outputs['cp_bin'] = cp_bin
+        outputs['ct_bin'] = ct_bin   
         
         
         
-        
-        
-class RotorAerodynamics(Group):
-    def setup(self):
-             
-        self.add_subsystem('annulus', AnnulusAero(), \
-                           promotes_inputs = ['wind_speed', 'blade_number', 'rotor_diameter', 'rotor_speed', 'hub_radius', \
-                                              'span_r', 'span_dr', 'span_airfoil', 'span_chord', 'span_twist', 'pitch'], \
-                           promotes_outputs=['span_fx', 'span_fy']
-                           )
-        
-        self.add_subsystem('rotor', RotorAero(), \
-                           promotes_inputs = ['wind_speed', 'rotor_diameter', 'rotor_speed', 'hub_radius'], \
-                           promotes_outputs=['*'])
-        
-        self.add_subsystem('curve', PowerCurve(), \
-                           promotes_inputs = ['cut_in_speed', 'cut_out_speed', 'rotor_diameter', 'machine_rating'], \
-                           promotes_outputs=['rated_wind_speed', 'wind_bin', 'power_bin', 'thrust_bin'])
-        
-        
-        self.connect('annulus.span_power', 'rotor.span_power')  
-        self.connect('annulus.span_thrust', 'rotor.span_thrust') 
-        self.connect('rotor_cp', 'curve.rotor_cp')
-        self.connect('rotor_ct', 'curve.rotor_ct') 
         
         
         
@@ -164,6 +143,8 @@ if __name__ == "__main__":
     print 'wind_bin = ' + beautify(prob['pc.wind_bin'])
     print 'power_bin = ' + beautify(prob['pc.power_bin'])
     print 'thrust_bin = ' + beautify(prob['pc.thrust_bin'])
+    print 'cp_bin = ' + beautify(prob['pc.cp_bin'])
+    print 'ct_bin = ' + beautify(prob['pc.ct_bin'])
   
     print 'Done in ' + str(time() - start) + ' seconds'    
      

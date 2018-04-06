@@ -266,7 +266,7 @@ def set_primary_input(root_name, BlAFID):
     input_file = aerodyn_folder + root_name + '_primary_input.dat'
     blade_file = '"' + root_name + '_blade.dat"'
     
-    Airfoils = ['"..//' + airfoil_folder + x + '"' for x in airfoils_db]
+    Airfoils = ['"' + airfoil_folder + x + '"' for x in airfoils_db]
     Airfoils = [x.replace('//', '\\') for x in Airfoils] # change folder separator to CMD style (slash -> backslash)
     
     
@@ -726,8 +726,9 @@ def execute_aerodyn(NumBlades, HubRad, HubHt, Overhang, ShftTilt, Precone, \
 
 
     # execute AeroDyn
-    command = './/' + aerodyn_folder + aerodyn_exe + ' ' + aerodyn_folder + driver_file
+    command = aerodyn_folder + aerodyn_exe + ' ' + aerodyn_folder + driver_file
     command = command.replace('//', '\\') # change folder separator to CMD style (slash -> backslash)
+    print command
     
     aerodyn_status = os.system(command)
     if aerodyn_status != 0:
@@ -759,7 +760,8 @@ if __name__ == "__main__":
     RotSpd = 7.43
     Pitch = 0
     Yaw = 0
-                      
+                
+    # set fixed parameters to 19                  
     BlSpn =   [0,    1.36665,    4.09995,    6.83325,    10.24995,    14.34995,    18.44995,    22.54995,    26.64995,    30.74995,    34.84995,    38.94995,    43.04995,    47.14995,    51.24995,    54.66665,    57.39995,    60.13325,    61.4999] 
     BlTwist = [13.308,    13.308,    13.308,    13.308,    13.308,    11.48,    10.162,    9.011,    7.795,    6.544,    5.361,    4.188,    3.125,    2.319,    1.526,    0.863,    0.37,    0.106,    0.106]
     BlChord = [3.542,    3.542,    3.854,    4.167,    4.557,    4.652,    4.458,    4.249,    4.007,    3.748,    3.502,    3.256,    3.01,    2.764,    2.518,    2.313,    2.086,    1.419,    1.419]

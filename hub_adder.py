@@ -265,22 +265,22 @@ def HubTest():
     # get and set values of the variables using Problem
     prob = Problem(HubSE())
     prob.setup()
-    view_model(prob, outfile='hub.html')
+    #view_model(prob, outfile='hub.html')
      
     AirDensity= 1.225 # kg/(m^3)
     Solidity  = 0.0517
     RatedWindSpeed = 11.05 # m/s
      
-    prob['dof.rotor_diameter'] = 100.0
+    prob['dof.rotor_diameter'] = 126.0
     prob['dof.blade_number'] = 3
     prob['dof.blade_root_diameter'] = 3.4
     prob['dof.machine_rating'] = 5000.0
-    prob['dof.blade_mass'] = 19500.0
-    prob['dof.rotor_bending_moment'] = 6583456.3 #(3.06 * pi / 8) * AirDensity * (RatedWindSpeed ** 2) * (Solidity * (prob['dof.rotor_diameter'] ** 3)) / prob['dof.blade_number']
+    prob['dof.blade_mass'] = 17740.0
+    prob['dof.rotor_bending_moment'] = -16665000.0 #(3.06 * pi / 8) * AirDensity * (RatedWindSpeed ** 2) * (Solidity * (prob['dof.rotor_diameter'] ** 3)) / prob['dof.blade_number']
  
     prob['dof.L_rb'] = 1.91 #inputs['L_rb']
     prob['dof.shaft_angle']     = 5.0 #inputs['shaft_angle']
-    prob['dof.MB1_location']     = [-1.09809735,  0.,          0.64357787] #[-1.03966219,  0.  ,       -0.20292427] #inputs['MB1_location']
+    prob['dof.MB1_location']     = [-1.70200443,  0. ,         0.84751353] #[-1.03966219,  0.  ,       -0.20292427] #inputs['MB1_location']
      
      
      
@@ -309,33 +309,33 @@ def NacelleTest():
     # get and set values of the variables using Problem
     prob = Problem(NacelleSE())
     prob.setup()
-    view_model(prob, outfile='nacelle2.html')
+    #view_model(prob, outfile='nacelle2.html')
     
-    prob['dof.rotor_diameter'] = 100.
-    prob['dof.rotor_speed'] = 19.1
+    prob['dof.rotor_diameter'] = 126.
+    prob['dof.rotor_speed'] = 12.1
     prob['dof.machine_rating'] = 5000.
-    prob['dof.rotor_torque'] = 772913.35 #6230511.04
-    prob['dof.rotor_thrust'] = 579145.69 #599610.
-    prob['dof.rotor_mass'] = 58500.
-    prob['dof.rotor_bending_moment_x'] = 790053.4 #330770.
-    prob['dof.rotor_bending_moment_y'] = 1030. #-16665000.
-    prob['dof.rotor_bending_moment_z'] = 152586.8 #2896300.
-    prob['dof.rotor_force_x'] = 574746.2 #599610.
-    prob['dof.rotor_force_y'] = 4.756348 #186780.
-    prob['dof.rotor_force_z'] = 705.1037 #-842710.
+    prob['dof.rotor_torque'] = (1.5*5000*1000/0.95)/(12.1*pi/30) #6230511.04
+    prob['dof.rotor_thrust'] = 599610.
+    prob['dof.rotor_mass'] = 0.
+    prob['dof.rotor_bending_moment_x'] = 330770.
+    prob['dof.rotor_bending_moment_y'] = -16665000.
+    prob['dof.rotor_bending_moment_z'] = 2896300.
+    prob['dof.rotor_force_x'] = 599610.
+    prob['dof.rotor_force_y'] = 186780.
+    prob['dof.rotor_force_z'] = -842710.
     prob['dof.gear_ratio'] = 96.76
     prob['dof.crane'] = 1
     prob['dof.shaft_angle'] = 5.
     prob['dof.shaft_ratio'] = 0.1
     prob['dof.Np'] = np.array([3.0,3.0,1.0,])
-    prob['dof.shrink_disc_mass'] = 1666.5
-    prob['dof.carrier_mass'] = 8000.
+    prob['dof.shrink_disc_mass'] = 5000.0/3.0
+    prob['dof.carrier_mass'] = 8000.0
     prob['dof.flange_length'] = 0.5
     prob['dof.overhang'] = 5.
     prob['dof.L_rb'] = 1.912
-    prob['dof.gearbox_cm_x'] = 0.0
+    prob['dof.gearbox_cm_x'] = 0.1
     prob['dof.tower_top_diameter'] = 3.78
-    prob['dof.hss_length'] = 0.
+    prob['dof.hss_length'] = 1.5
      
      
      
@@ -353,7 +353,7 @@ def NacelleTest():
     print 'Done in ' + str(time() - start) + ' seconds'      
             
 if __name__ == "__main__":
-    HubTest()
-    #NacelleTest()
+    #HubTest()
+    NacelleTest()
     
        

@@ -1,18 +1,28 @@
 # folders
-airfoil_folder = 'Airfoils//'
-plots_folder = 'Plots//'
-aerodyn_folder = 'AeroDyn//'
+import os 
+abs_path = os.path.dirname(os.path.realpath(__file__)).replace('\\', '//') + '//'
+airfoil_folder = abs_path + 'Airfoils//'
+plots_folder = abs_path + 'Plots//'
+aerodyn_folder = abs_path + 'AeroDyn//'
 
+# fixed parameters
 num_airfoils = 8
-num_nodes = 20
+num_nodes = 25
 num_bins = 30
-plot_graphs = True
+plot_graphs = False
+
+# model choices
+model_aerodynamic_design    = 'AerodynamicDesignScaling' # ['AerodynamicDesignBetz', 'AerodynamicDesignScaling']
+model_structural_design     = 'StructuralDesignVariableRadius' # ['StructuralDesignConstantRadius', 'StructuralDesignVariableRadius']
+model_aerodynamics          = 'AerodynamicsAeroDyn' # ['AerodynamicsSimple', 'AerodynamicsAeroDyn'] 
+model_mechanics             = 'RotorMechanicsAnalytical' # ['RotorMechanicsAnalytical']
+model_power_curve           = 'PowerCurve' # ['PowerCurve']
 
 # types
 airfoils_db = ['Cylinder1_10Hz.dat', 'Cylinder2_10Hz.dat', 'DU40_A17_10Hz.dat', 'DU35_A17_10Hz.dat', \
                 'DU30_A17_10Hz.dat', 'DU25_A17_10Hz.dat', 'DU21_A17_10Hz.dat', 'NACA64_A17_10Hz.dat']
-bearing_types = ['CARB','TRB1','TRB2','SRB','CRB','RB']
-stage_type = ['eep', 'epp', 'eep_2', 'eep_3']
+bearing_db = ['CARB','TRB1','TRB2','SRB','CRB','RB']
+gearstage_db = ['eep', 'epp', 'eep_2', 'eep_3']
 
 
 # wind condition
@@ -25,7 +35,7 @@ k_air = 1.4639e-05 # kinematic viscosity of air [m^2/s]
 g = 9.8
 
 # densities (kg/m^3)
-rho_air = 0.9526
+rho_air = 1.225
 rho_blade = 2600
 rho_iron = 7200
 
